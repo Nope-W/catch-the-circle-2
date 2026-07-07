@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Catch the Circle - Procedural Pilot</title>
+    <style>
+        /* MOBILE LOCKDOWN CSS */
+        body { 
+            font-family: sans-serif; 
+            text-align: center; 
+            background-color: #222; 
+            color: #fff; 
+            margin: 0; 
+            padding: 0; 
+            width: 100vw;
+            height: 100dvh; 
+            overflow: hidden; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .header-container {
+            width: 100%;
+            padding: 5px 0;
+            flex-shrink: 0; 
+        }
+        
+        h1 { font-size: 1.5rem; margin: 5px 0; }
+        
+        #game-board { 
+            width: 100%; 
+            max-width: 90vw; 
+            height: auto;
+            max-height: 70dvh; 
+            aspect-ratio: 16 / 9; 
+            
+            margin: 0 auto; 
+            position: relative; 
+            background-color: #444; 
+            
+            background-size: cover; 
+            background-position: center; 
+            background-repeat: no-repeat;
+            
+            border: 3px solid #fff; 
+            border-radius: 8px; 
+            overflow: hidden; 
+            cursor: crosshair;
+            
+            touch-action: none; 
+        }
+        
+        #target { 
+            position: absolute; 
+            display: none; 
+            border-radius: 50%; 
+            box-shadow: 0 0 6px rgba(0,0,0,0.5);
+            z-index: 5;
+        }
+        
+        /* OVERLAY SCREENS */
+        .overlay-screen { 
+            position: fixed; 
+            top: 0; left: 0; right: 0; bottom: 0; 
+            background-color: rgba(0, 0, 0, 0.95); 
+            z-index: 100; 
+            
+            overflow-y: auto; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: flex-start; 
+            padding: 20px 15px; 
+        }
+        
+        .overlay-screen h2 { margin-top: 0; color: #4CAF50; font-size: 1.6rem; margin-bottom: 10px; }
+        
+        #trial-screen, #end-screen, #ready-screen { display: none; justify-content: center; } 
+        
+        .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; font-size: 1.1rem; margin-bottom: 5px; }
+        
+        .instructions-box {
+            max-width: 600px;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 10px 15px; 
+            border-radius: 8px;
+            margin-bottom: 10px; 
+            text-align: left;
+            line-height: 1.3;
+            font-size: 1rem;
+        }
+        
+        .instructions-box p { margin: 5px 0; } 
+        .warning-text { color: #f39c12; font-weight: bold; }
+        
+        .form-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; width: 100%; max-width: 700px; flex-wrap: wrap;}
+        .control-group { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 160px;}
+        .control-group label { margin-bottom: 3px; font-weight: bold; font-size: 0.9rem;}
+        
+        input[type="text"], select { padding: 8px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; width: 90%; }
+        
+        .checkbox-group { margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; cursor: pointer; width: 100%; }
+        .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        
+        button { padding: 10px 20px; font-size: 1.1rem; font-weight: bold; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 5px; margin: 10px; transition: 0.2s; flex-shrink: 0;}
+        button:hover { background-color: #45a049; }
+        button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        .danger-btn { background-color: #3498db; }
+        .danger-btn:hover { background-color: #2980b9; }
+        
+        #upload-status { margin-top: 15px; font-weight: bold; color: #f1c40f; display: none; }
+        
+        #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
+        @media (orientation: portrait) {
+            #rotate-hint { display: block; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen" class="overlay-screen">
+        <h2>Catch the Circle</h2>
+        
+        <div class="instructions-box">
+            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged bouncing circle as fast as you can (10 trials).</p>
+            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site" and rotate to Landscape.</p>
+            <p class="warning-text">⚠️ Note: This task relies heavily on color perception.</p>
+        </div>
+
+        <label class="checkbox-group">
+            <input type="checkbox" id="colorblind-check">
+            I have a color vision deficiency (colorblindness)
+        </label>
+        
+        <div class="form-row">
+            <div class="control-group">
+                <label for="participant-id">Participant ID</label>
+                <input type="text" id="participant-id" placeholder="e.g., P-001" autocomplete="off">
+            </div>
+
+            <div class="control-group">
+                <label for="device-select">Device Type</label>
+                <select id="device-select">
+                    <option value="Laptop/Desktop" selected>Laptop / Desktop</option>
+                    <option value="Tablet">Tablet (iPad, etc.)</option>
+                    <option value="Smartphone">Smartphone</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="difficulty-select">Target Speed</label>
+                <select id="difficulty-select">
+                    <option value="3">Easy (Slow)</option>
+                    <option value="6" selected>Medium (Standard)</option>
+                    <option value="10">Hard (Fast)</option>
+                </select>
+            </div>
+        </div>
+
+        <button id="start-session-btn">Start Experiment</button>
+    </div>
+
+    <div id="ready-screen" class="overlay-screen">
+        <h2>Setup Complete</h2>
+        <p>Ensure the browser's fullscreen notification has disappeared before starting.</p>
+        <button id="begin-first-trial-btn">Start Trial 1</button>
+    </div>
+
+    <div id="trial-screen" class="overlay-screen">
+        <h2>Target Caught!</h2>
+        <p>Reaction Time: <strong id="trial-time">0.00</strong> seconds</p>
+        <button id="next-trial-btn">Start Next Trial</button>
+    </div>
+
+    <div id="end-screen" class="overlay-screen">
+        <h2>Experiment Complete</h2>
+        <p>10 trials finished successfully.</p>
+        <button id="finish-session-btn" class="danger-btn">Finish Session & Upload Data</button>
+        <div id="upload-status">Uploading data to Google Sheets...</div>
+    </div>
+
+    <div class="header-container">
+        <h1>Catch the Circle</h1>
+        <div id="rotate-hint">📱 Phone Users: Please request "Desktop Site" and rotate to Landscape</div>
+        
+        <div class="stats">
+            <div>Trial: <strong id="trial-counter-display">0 / 10</strong></div>
+            <div>Time: <strong id="live-time-display">0.00</strong> s</div>
+            <div>Misses: <strong id="miss-display">0</strong></div>
+        </div>
+    </div>
+
+    <div id="game-board">
+        <div id="target"></div>
+    </div>
+
+    <script>
+        const MAX_TRIALS = 10;
+        
+        const board = document.getElementById('game-board');
+        const target = document.getElementById('target');
+        
+        const introScreen = document.getElementById('intro-screen');
+        const readyScreen = document.getElementById('ready-screen');
+        const trialScreen = document.getElementById('trial-screen');
+        const endScreen = document.getElementById('end-screen');
+        
+        const startSessionBtn = document.getElementById('start-session-btn');
+        const beginFirstTrialBtn = document.getElementById('begin-first-trial-btn');
+        const nextTrialBtn = document.getElementById('next-trial-btn');
+        const finishSessionBtn = document.getElementById('finish-session-btn');
+        const uploadStatus = document.getElementById('upload-status');
+        
+        const participantInput = document.getElementById('participant-id');
+        const difficultySelect = document.getElementById('difficulty-select');
+        const deviceSelect = document.getElementById('device-select');
+        const colorblindCheck = document.getElementById('colorblind-check');
+        
+        const liveTimeDisplay = document.getElementById('live-time-display');
+        const missDisplay = document.getElementById('miss-display');
+        const trialTimeDisplay = document.getElementById('trial-time');
+        const trialCounterDisplay = document.getElementById('trial-counter-display');
+
+        let startTime = 0; 
+        let misses = 0; 
+        let gameActive = false;
+        let liveTimerInterval; 
+        let animationFrameId;
+        
+        let lastFrameTime = 0;
+        let lastMissTime = 0; 
+        
+        let posX = 0; let posY = 0; 
+        let velocityX = 0; let velocityY = 0;
+        
+        let participantId = "Unknown";
+        let difficultyMode = "Medium";
+        let isColorblind = "No";
+        let deviceType = "Laptop/Desktop";
+        let speedMultiplier = 6;
+        let trialCounter = 0;
+        let sessionData = []; 
+        let currentTrialMetrics = {}; // Store metrics for the active trial
+
+        // --- NEW: CIELAB to sRGB Conversion ---
+        function labToRgb(l, a, b) {
+            let y = (l + 16) / 116,
+                x = a / 500 + y,
+                z = y - b / 200,
+                r, g, b_out;
+
+            x = 0.95047 * ((x * x * x > 0.008856) ? x * x * x : (x - 16/116) / 7.787);
+            y = 1.00000 * ((y * y * y > 0.008856) ? y * y * y : (y - 16/116) / 7.787);
+            z = 1.08883 * ((z * z * z > 0.008856) ? z * z * z : (z - 16/116) / 7.787);
+
+            r = x * 3.2406 + y * -1.5372 + z * -0.4986;
+            g = x * -0.9689 + y * 1.8758 + z * 0.0415;
+            b_out = x * 0.0557 + y * -0.2040 + z * 1.0570;
+
+            r = (r > 0.0031308) ? (1.055 * Math.pow(r, 1/2.4) - 0.055) : 12.92 * r;
+            g = (g > 0.0031308) ? (1.055 * Math.pow(g, 1/2.4) - 0.055) : 12.92 * g;
+            b_out = (b_out > 0.0031308) ? (1.055 * Math.pow(b_out, 1/2.4) - 0.055) : 12.92 * b_out;
+
+            return [
+                Math.max(0, Math.min(1, r)) * 255,
+                Math.max(0, Math.min(1, g)) * 255,
+                Math.max(0, Math.min(1, b_out)) * 255
+            ];
+        }
+
+        // --- NEW: Procedural Background Generator ---
+        function generateBackground(canvas, metrics) {
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            const imgData = ctx.createImageData(width, height);
+            const data = imgData.data;
+
+            let totalL = 0, totalA = 0, totalB = 0;
+
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const spatialNoise = Math.sin(x * metrics.spatialFreq) * Math.cos(y * metrics.spatialFreq);
+                    const orientationNoise = Math.sin((x * Math.cos(metrics.orientation) + y * Math.sin(metrics.orientation)) * metrics.spatialFreq * 2);
+                    const combinedNoise = (spatialNoise + orientationNoise) / 2;
+
+                    const l = metrics.baseL + (combinedNoise * metrics.lumContrast);
+                    const a = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
+                    const b = metrics.baseB + (Math.random() * 2 - 1) * metrics.colorClutter;
+
+                    totalL += l; totalA += a; totalB += b;
+                    const rgb = labToRgb(l, a, b);
+
+                    const index = (y * width + x) * 4;
+                    data[index] = rgb[0];
+                    data[index + 1] = rgb[1];
+                    data[index + 2] = rgb[2];
+                    data[index + 3] = 255;
+                }
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+            const pixelCount = width * height;
+            return labToRgb(totalL / pixelCount, totalA / pixelCount, totalB / pixelCount);
+        }
+
+        startSessionBtn.addEventListener('click', () => {
+            const enteredId = participantInput.value.trim();
+            if (enteredId === "") {
+                alert("⚠️ Please enter a Participant ID before starting the experiment.");
+                participantInput.focus(); 
+                return; 
+            }
+            
+            participantId = enteredId;
+            participantInput.blur(); 
+
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log("Fullscreen not supported or denied.");
+                });
+            }
+            
+            speedMultiplier = parseFloat(difficultySelect.value);
+            difficultyMode = difficultySelect.options[difficultySelect.selectedIndex].text;
+            isColorblind = colorblindCheck.checked ? "Yes" : "No";
+            deviceType = deviceSelect.options[deviceSelect.selectedIndex].value;
+            
+            introScreen.style.display = 'none';
+            readyScreen.style.display = 'flex';
+        });
+
+        beginFirstTrialBtn.addEventListener('click', () => {
+            beginFirstTrialBtn.disabled = true;
+            let cooldown = 3;
+            beginFirstTrialBtn.innerText = `Starting in ${cooldown}...`;
+            
+            const cooldownTimer = setInterval(() => {
+                cooldown--;
+                if (cooldown > 0) {
+                    beginFirstTrialBtn.innerText = `Starting in ${cooldown}...`;
+                } else {
+                    clearInterval(cooldownTimer);
+                    readyScreen.style.display = 'none';
+                    startTrial();
+                }
+            }, 1000);
+        });
+
+        function setupTrialBackground() {
+            // Randomize metrics for this specific trial
+            currentTrialMetrics = {
+                spatialFreq: Math.random() * 0.05 + 0.01, // 0.01 (large) to 0.06 (fine)
+                orientation: Math.random() * Math.PI,     // 0 to PI
+                lumContrast: Math.random() * 40 + 10,     // 10 to 50
+                colorClutter: Math.random() * 20,         // 0 to 20
+                baseL: 45, baseA: -15, baseB: 20          // Forest floor baseline
+            };
+
+            const bgCanvas = document.createElement('canvas');
+            bgCanvas.width = board.clientWidth;
+            bgCanvas.height = board.clientHeight;
+            
+            const preyRGB = generateBackground(bgCanvas, currentTrialMetrics);
+            
+            board.style.backgroundImage = `url(${bgCanvas.toDataURL()})`;
+            target.style.backgroundColor = `rgb(${preyRGB[0]}, ${preyRGB[1]}, ${preyRGB[2]})`;
+        }
+
+        function startTrial() {
+            trialCounter++;
+            trialCounterDisplay.innerText = `${trialCounter} / ${MAX_TRIALS}`;
+            
+            trialScreen.style.display = 'none';
+            misses = 0;
+            missDisplay.innerText = misses;
+
+            // Generate procedural background
+            setupTrialBackground();
+            
+            const boardWidth = board.clientWidth;
+            const boardHeight = board.clientHeight;
+            
+            let targetSize = boardHeight * (60 / 600);
+            if (targetSize < 45) targetSize = 45;
+
+            target.style.width = `${targetSize}px`;
+            target.style.height = `${targetSize}px`; 
+
+            const maxX = boardWidth - targetSize;
+            const maxY = boardHeight - targetSize;
+            posX = Math.random() * maxX; 
+            posY = Math.random() * maxY;
+            
+            setInitialVelocity(boardWidth);
+
+            target.style.display = 'block';
+            gameActive = true;
+            startTime = Date.now();
+            
+            clearInterval(liveTimerInterval);
+            liveTimerInterval = setInterval(() => {
+                liveTimeDisplay.innerText = ((Date.now() - startTime) / 1000).toFixed(2);
+            }, 50);
+
+            lastFrameTime = performance.now();
+            animationFrameId = requestAnimationFrame(animateTarget);
+        }
+
+        function setInitialVelocity(boardWidth) {
+            const scaleFactor = boardWidth / 800; 
+            const basePixelsPerSecond = speedMultiplier * 60; 
+            const actualSpeedPPS = basePixelsPerSecond * scaleFactor;
+            
+            const angle = Math.random() * 2 * Math.PI;
+            velocityX = Math.cos(angle) * actualSpeedPPS;
+            velocityY = Math.sin(angle) * actualSpeedPPS;
+        }
+
+        function animateTarget(currentTime) {
+            if (!gameActive) return;
+
+            let deltaTime = (currentTime - lastFrameTime) / 1000;
+            lastFrameTime = currentTime;
+            if (deltaTime > 0.1) deltaTime = 0.1; 
+
+            posX += velocityX * deltaTime; 
+            posY += velocityY * deltaTime;
+            
+            const maxX = board.clientWidth - target.clientWidth;
+            const maxY = board.clientHeight - target.clientHeight;
+
+            if (posX <= 0) { posX = 0; velocityX *= -1; }
+            if (posX >= maxX) { posX = maxX; velocityX *= -1; }
+            if (posY <= 0) { posY = 0; velocityY *= -1; }
+            if (posY >= maxY) { posY = maxY; velocityY *= -1; }
+
+            target.style.left = posX + 'px'; 
+            target.style.top = posY + 'px';
+            
+            animationFrameId = requestAnimationFrame(animateTarget);
+        }
+
+        function handleTargetCaught(event) {
+            if (!gameActive) return;
+            event.stopPropagation(); 
+            if (event.cancelable) event.preventDefault(); 
+            
+            gameActive = false;
+            cancelAnimationFrame(animationFrameId);
+            clearInterval(liveTimerInterval);
+
+            const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
+            
+            // --- UPDATED CSV DATA PAYLOAD ---
+            sessionData.push([
+                participantId,
+                deviceType,
+                difficultyMode,
+                isColorblind,
+                trialCounter,
+                reactionTime,
+                misses,
+                currentTrialMetrics.spatialFreq.toFixed(4),
+                currentTrialMetrics.lumContrast.toFixed(2),
+                currentTrialMetrics.colorClutter.toFixed(2),
+                currentTrialMetrics.orientation.toFixed(2)
+            ]);
+            
+            target.style.display = 'none'; 
+            
+            if (trialCounter >= MAX_TRIALS) {
+                endScreen.style.display = 'flex';
+            } else {
+                trialTimeDisplay.innerText = reactionTime;
+                trialScreen.style.display = 'flex'; 
+                
+                nextTrialBtn.disabled = true;
+                let cooldown = 3;
+                nextTrialBtn.innerText = `Please wait (${cooldown}s)...`;
+                
+                const cooldownTimer = setInterval(() => {
+                    cooldown--;
+                    if (cooldown > 0) {
+                        nextTrialBtn.innerText = `Please wait (${cooldown}s)...`;
+                    } else {
+                        clearInterval(cooldownTimer);
+                        nextTrialBtn.disabled = false;
+                        nextTrialBtn.innerText = "Start Next Trial";
+                    }
+                }, 1000);
+            }
+        }
+
+        function handleBoardMiss(event) {
+            if (!gameActive) return;
+            if (event.cancelable) event.preventDefault(); 
+            
+            if (Date.now() - lastMissTime < 100) return; 
+            lastMissTime = Date.now();
+            
+            misses++;
+            missDisplay.innerText = misses;
+        }
+
+        target.addEventListener('mousedown', handleTargetCaught);
+        target.addEventListener('touchstart', handleTargetCaught, {passive: false});
+        board.addEventListener('mousedown', handleBoardMiss);
+        board.addEventListener('touchstart', handleBoardMiss, {passive: false});
+        nextTrialBtn.addEventListener('click', startTrial);
+
+        finishSessionBtn.addEventListener('click', () => {
+            finishSessionBtn.disabled = true;
+            uploadStatus.style.display = 'block';
+            uploadStatus.innerText = "Uploading data to Google Sheets...";
+            uploadStatus.style.color = "#f1c40f"; 
+            
+            // --- YOUR WEB APP URL GOES HERE ---
+            const googleScriptURL = "https://script.google.com/macros/s/AKfycbyhhLfLPLdhaxM0e--kkzCr2eO9bgRbBZRsOY13BYvySzAgqFDr1zjVChBg_bQ1gTQewA/exec"; 
+
+            fetch(googleScriptURL, {
+                method: 'POST',
+                body: JSON.stringify(sessionData),
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            })
+            .then(response => {
+                uploadStatus.innerText = "Upload Complete! Refresh page for next participant.";
+                uploadStatus.style.color = "#2ecc71"; 
+                
+                if (document.fullscreenElement) {
+                    document.exitFullscreen();
+                }
+                alert("Upload Complete! Data is safely in your Google Sheet.");
+            })
+            .catch(error => {
+                console.error('Error!', error);
+                uploadStatus.innerText = "Error uploading data. Check your internet.";
+                uploadStatus.style.color = "#e74c3c"; 
+                finishSessionBtn.disabled = false;
+            });
+        });
+
+    </script>
+</body>
+</html>
