@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Randomized fBm</title>
+    <title>Catch the Circle - Advanced fBm Camouflage</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -238,11 +238,16 @@
             
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
-                    const n = fBm(x, y, 4, metrics.spatialFreq);
-                    const l = metrics.baseL + ((n - 0.5) * 2 * metrics.lumContrast);
+                    // Generate fBm noise for Luminance
+                    const nL = fBm(x, y, 4, metrics.spatialFreq);
                     
-                    const a = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
-                    const b = metrics.baseB + (Math.random() * 2 - 1) * metrics.colorClutter;
+                    // Generate offset fBm noise for Colors to create distinct macro patches
+                    const nA = fBm(x + 1000, y + 1000, 4, metrics.spatialFreq);
+                    const nB = fBm(x + 2000, y + 2000, 4, metrics.spatialFreq);
+                    
+                    const l = metrics.baseL + ((nL - 0.5) * 2 * metrics.lumContrast);
+                    const a = metrics.baseA + ((nA - 0.5) * 2 * metrics.colorClutter);
+                    const b = metrics.baseB + ((nB - 0.5) * 2 * metrics.colorClutter);
 
                     totalL += l; totalA += a; totalB += b;
                     const rgb = labToRgb(l, a, b);
@@ -266,15 +271,23 @@
             // Randomize Luminance Contrast between 15 (low contrast) and 50 (high contrast)
             const randomLum = 15 + (Math.random() * 35);
             
-            // Randomize Color Clutter between 5 (mostly uniform) and 25 (mottled colors)
-            const randomColorClutter = 5 + (Math.random() * 20);
+            // Increased color clutter max to allow for stronger color contrasts
+            const randomColorClutter = 10 + (Math.random() * 35);
+
+            // Randomize the base color palette for variety (spanning natural hues)
+            // baseA: -25 (strong green) to +15 (red/magenta)
+            // baseB: 0 (neutral/grey) to +35 (strong yellow/brown)
+            const randomBaseA = -25 + (Math.random() * 40);
+            const randomBaseB = 0 + (Math.random() * 35);
 
             currentTrialMetrics = {
                 spatialFreq: randomFreq,
                 lumContrast: randomLum,
                 colorClutter: randomColorClutter,
                 orientation: 0, 
-                baseL: 45, baseA: -10, baseB: 15 // Forest floor green/brown base
+                baseL: 50, 
+                baseA: randomBaseA, 
+                baseB: randomBaseB 
             };
 
             const bgCanvas = document.createElement('canvas');
