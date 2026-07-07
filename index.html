@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Psychophysics Pilot</title>
+    <title>Catch the Prey - 3D Predator Pilot</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -22,77 +23,31 @@
             justify-content: center;
         }
         
-        .header-container {
-            width: 100%;
-            padding: 5px 0;
-            flex-shrink: 0; 
-        }
-        
-        h1 { font-size: 1.5rem; margin: 5px 0; }
+        .header-container { width: 100%; padding: 5px 0; flex-shrink: 0; }
+        h1 { font-size: 1.5rem; margin: 5px 0; color: #4CAF50; text-transform: uppercase; letter-spacing: 1px;}
         
         #game-board { 
-            width: 100%; 
-            max-width: 90vw; 
-            height: auto;
-            max-height: 70dvh; 
-            aspect-ratio: 16 / 9; 
-            
-            margin: 0 auto; 
-            position: relative; 
-            background-color: #444; 
-            
-            background-size: cover; 
-            background-position: center; 
-            background-repeat: no-repeat;
-            
-            border: 3px solid #fff; 
-            border-radius: 8px; 
-            overflow: hidden; 
-            cursor: crosshair;
-            
-            touch-action: none; 
-        }
-        
-        #target { 
-            position: absolute; 
-            display: none; 
-            border-radius: 50%; 
-            box-shadow: 0 0 6px rgba(0,0,0,0.5);
-            z-index: 5;
+            width: 100%; max-width: 90vw; height: auto; max-height: 70dvh; aspect-ratio: 16 / 9; 
+            margin: 0 auto; position: relative; background-color: #000; 
+            border: 3px solid #555; border-radius: 8px; overflow: hidden; cursor: crosshair; touch-action: none; 
         }
         
         /* OVERLAY SCREENS */
         .overlay-screen { 
-            position: fixed; 
-            top: 0; left: 0; right: 0; bottom: 0; 
-            background-color: rgba(0, 0, 0, 0.95); 
-            z-index: 100; 
-            
-            overflow-y: auto; 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            justify-content: flex-start; 
-            padding: 20px 15px; 
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+            background-color: rgba(0, 0, 0, 0.95); z-index: 100; 
+            overflow-y: auto; display: flex; flex-direction: column; 
+            align-items: center; justify-content: flex-start; padding: 20px 15px; 
         }
         
         .overlay-screen h2 { margin-top: 0; color: #4CAF50; font-size: 1.6rem; margin-bottom: 10px; }
-        
         #trial-screen, #end-screen, #ready-screen { display: none; justify-content: center; } 
-        
         .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; font-size: 1.1rem; margin-bottom: 5px; }
         
         .instructions-box {
-            max-width: 600px;
-            background-color: rgba(255, 255, 255, 0.1);
-            padding: 10px 15px; 
-            border-radius: 8px;
-            margin-bottom: 10px; 
-            text-align: left;
-            line-height: 1.3;
-            font-size: 1rem;
+            max-width: 600px; background-color: rgba(255, 255, 255, 0.1);
+            padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.3; font-size: 1rem;
         }
-        
         .instructions-box p { margin: 5px 0; } 
         .warning-text { color: #f39c12; font-weight: bold; }
         
@@ -112,80 +67,69 @@
         .danger-btn:hover { background-color: #2980b9; }
         
         #upload-status { margin-top: 15px; font-weight: bold; color: #f1c40f; display: none; }
-        
         #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
-        @media (orientation: portrait) {
-            #rotate-hint { display: block; }
-        }
+        @media (orientation: portrait) { #rotate-hint { display: block; } }
     </style>
 </head>
 <body>
 
     <div id="intro-screen" class="overlay-screen">
-        <h2>Catch the Circle</h2>
+        <h2>Catch the Prey (3D)</h2>
         
         <div class="instructions-box">
-            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged bouncing circle as fast as you can (10 trials).</p>
-            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site" and rotate to Landscape.</p>
-            <p class="warning-text">⚠️ Note: This task relies heavily on color perception.</p>
+            <p>🦅 <strong>Goal:</strong> You are a predator looking down. Tap the moving, camouflaged prey as fast as you can (10 trials).</p>
+            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Rotate to Landscape.</p>
         </div>
 
         <label class="checkbox-group">
-            <input type="checkbox" id="colorblind-check">
-            I have a color vision deficiency (colorblindness)
+            <input type="checkbox" id="colorblind-check"> I have a color vision deficiency
         </label>
         
         <div class="form-row">
             <div class="control-group">
-                <label for="participant-id">Participant ID</label>
+                <label>Participant ID</label>
                 <input type="text" id="participant-id" placeholder="e.g., P-001" autocomplete="off">
             </div>
-
             <div class="control-group">
-                <label for="device-select">Device Type</label>
+                <label>Device Type</label>
                 <select id="device-select">
                     <option value="Laptop/Desktop" selected>Laptop / Desktop</option>
-                    <option value="Tablet">Tablet (iPad, etc.)</option>
+                    <option value="Tablet">Tablet</option>
                     <option value="Smartphone">Smartphone</option>
                 </select>
             </div>
-
             <div class="control-group">
-                <label for="difficulty-select">Target Speed</label>
+                <label>Prey Speed</label>
                 <select id="difficulty-select">
-                    <option value="3">Easy (Slow)</option>
-                    <option value="6" selected>Medium (Standard)</option>
-                    <option value="10">Hard (Fast)</option>
+                    <option value="15">Easy (Slow)</option>
+                    <option value="25" selected>Medium (Standard)</option>
+                    <option value="40">Hard (Fast)</option>
                 </select>
             </div>
         </div>
-
         <button id="start-session-btn">Start Experiment</button>
     </div>
 
     <div id="ready-screen" class="overlay-screen">
         <h2>Setup Complete</h2>
-        <p>Ensure the browser's fullscreen notification has disappeared before starting.</p>
         <button id="begin-first-trial-btn">Start Trial 1</button>
     </div>
 
     <div id="trial-screen" class="overlay-screen">
-        <h2>Target Caught!</h2>
-        <p>Reaction Time: <strong id="trial-time">0.00</strong> seconds</p>
-        <button id="next-trial-btn">Start Next Trial</button>
+        <h2>Prey Caught!</h2>
+        <p>Attack Latency: <strong id="trial-time">0.00</strong> seconds</p>
+        <button id="next-trial-btn">Start Next Hunt</button>
     </div>
 
     <div id="end-screen" class="overlay-screen">
-        <h2>Experiment Complete</h2>
-        <p>10 trials finished successfully.</p>
+        <h2>Hunt Complete</h2>
         <button id="finish-session-btn" class="danger-btn">Finish Session & Upload Data</button>
         <div id="upload-status">Uploading data to Google Sheets...</div>
     </div>
 
     <div class="header-container">
-        <h1>Catch the Circle</h1>
-        <div id="rotate-hint">📱 Phone Users: Please request "Desktop Site" and rotate to Landscape</div>
-        
+        <h1>Hawk-Eye View</h1>
+        <div id="rotate-hint">📱 Rotate phone to Landscape</div>
         <div class="stats">
             <div>Trial: <strong id="trial-counter-display">0 / 10</strong></div>
             <div>Time: <strong id="live-time-display">0.00</strong> s</div>
@@ -193,131 +137,136 @@
         </div>
     </div>
 
-    <div id="game-board">
-        <div id="target"></div>
-    </div>
+    <div id="game-board"></div>
 
     <script>
         const MAX_TRIALS = 10;
-        
         const board = document.getElementById('game-board');
-        const target = document.getElementById('target');
-        
         const introScreen = document.getElementById('intro-screen');
         const readyScreen = document.getElementById('ready-screen');
         const trialScreen = document.getElementById('trial-screen');
         const endScreen = document.getElementById('end-screen');
-        
         const startSessionBtn = document.getElementById('start-session-btn');
         const beginFirstTrialBtn = document.getElementById('begin-first-trial-btn');
         const nextTrialBtn = document.getElementById('next-trial-btn');
         const finishSessionBtn = document.getElementById('finish-session-btn');
         const uploadStatus = document.getElementById('upload-status');
         
-        const participantInput = document.getElementById('participant-id');
-        const difficultySelect = document.getElementById('difficulty-select');
-        const deviceSelect = document.getElementById('device-select');
-        const colorblindCheck = document.getElementById('colorblind-check');
-        
-        const liveTimeDisplay = document.getElementById('live-time-display');
-        const missDisplay = document.getElementById('miss-display');
-        const trialTimeDisplay = document.getElementById('trial-time');
-        const trialCounterDisplay = document.getElementById('trial-counter-display');
+        let startTime = 0, misses = 0, gameActive = false, trialCounter = 0;
+        let lastFrameTime = 0, lastMissTime = 0; 
+        let participantId = "Unknown", difficultyMode = "Medium", isColorblind = "No", deviceType = "Laptop/Desktop";
+        let speedMultiplier = 25;
+        let sessionData = []; let currentTrialMetrics = {}; 
 
-        let startTime = 0; 
-        let misses = 0; 
-        let gameActive = false;
-        let liveTimerInterval; 
-        let animationFrameId;
-        
-        let lastFrameTime = 0;
-        let lastMissTime = 0; 
-        
-        let posX = 0; let posY = 0; 
-        let velocityX = 0; let velocityY = 0;
-        
-        let participantId = "Unknown";
-        let difficultyMode = "Medium";
-        let isColorblind = "No";
-        let deviceType = "Laptop/Desktop";
-        let speedMultiplier = 6;
-        let trialCounter = 0;
-        let sessionData = []; 
-        let currentTrialMetrics = {}; 
+        // --- THREE.JS GLOBALS ---
+        let scene, camera, renderer, raycaster, mouse;
+        let groundMesh, preyMesh;
+        let preyVelocity = new THREE.Vector3();
+        const PLANE_SIZE = 100;
+        const PREY_RADIUS = 3;
 
         // --- CIELAB to sRGB Conversion ---
         function labToRgb(l, a, b) {
-            let y = (l + 16) / 116,
-                x = a / 500 + y,
-                z = y - b / 200,
-                r, g, b_out;
-
+            let y = (l + 16) / 116, x = a / 500 + y, z = y - b / 200, r, g, b_out;
             x = 0.95047 * ((x * x * x > 0.008856) ? x * x * x : (x - 16/116) / 7.787);
             y = 1.00000 * ((y * y * y > 0.008856) ? y * y * y : (y - 16/116) / 7.787);
             z = 1.08883 * ((z * z * z > 0.008856) ? z * z * z : (z - 16/116) / 7.787);
-
             r = x * 3.2406 + y * -1.5372 + z * -0.4986;
             g = x * -0.9689 + y * 1.8758 + z * 0.0415;
             b_out = x * 0.0557 + y * -0.2040 + z * 1.0570;
-
             r = (r > 0.0031308) ? (1.055 * Math.pow(r, 1/2.4) - 0.055) : 12.92 * r;
             g = (g > 0.0031308) ? (1.055 * Math.pow(g, 1/2.4) - 0.055) : 12.92 * g;
             b_out = (b_out > 0.0031308) ? (1.055 * Math.pow(b_out, 1/2.4) - 0.055) : 12.92 * b_out;
-
-            return [
-                Math.max(0, Math.min(1, r)) * 255,
-                Math.max(0, Math.min(1, g)) * 255,
-                Math.max(0, Math.min(1, b_out)) * 255
-            ];
+            return [Math.max(0, Math.min(1, r)) * 255, Math.max(0, Math.min(1, g)) * 255, Math.max(0, Math.min(1, b_out)) * 255];
         }
 
-        // --- Sharp Camouflage Generator ---
-        function generateBackground(canvas, metrics) {
+        // --- Procedural Texture Generator ---
+        function generateTextureCanvas(metrics) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024; canvas.height = 1024; // High res for 3D ground
             const ctx = canvas.getContext('2d');
-            const width = canvas.width;
-            const height = canvas.height;
 
-            // Generate a palette of 4 colors based on CIELAB variances
             const palette = [];
             let totalL = 0, totalA = 0, totalB = 0;
-
             for (let i = 0; i < 4; i++) {
                 const l = metrics.baseL + (Math.random() * 2 - 1) * metrics.lumContrast;
                 const a = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
                 const b = metrics.baseB + (Math.random() * 2 - 1) * metrics.colorClutter;
-
                 totalL += l; totalA += a; totalB += b;
                 palette.push(labToRgb(l, a, b));
             }
 
-            // Fill base background
             ctx.fillStyle = `rgb(${palette[0][0]}, ${palette[0][1]}, ${palette[0][2]})`;
-            ctx.fillRect(0, 0, width, height);
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            const baseSize = (width + height) / 2;
-            const blobCount = Math.floor(metrics.spatialFreq * 3000) + 100;
-            const maxRadius = baseSize / (metrics.spatialFreq * 40 + 2);
+            const blobCount = Math.floor(metrics.spatialFreq * 5000) + 200;
+            const maxRadius = 1024 / (metrics.spatialFreq * 40 + 2);
 
-            // Draw sharp, overlapping blobs
             for (let i = 0; i < blobCount; i++) {
-                const x = Math.random() * width;
-                const y = Math.random() * height;
-                
-                const radiusX = Math.random() * maxRadius + 5;
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const radiusX = Math.random() * maxRadius + 10;
                 const radiusY = (Math.random() > 0.5) ? radiusX : radiusX * (Math.random() * metrics.orientation + 0.5);
-
                 const color = palette[Math.floor(Math.random() * palette.length)];
+                
                 ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-
                 ctx.beginPath();
                 ctx.ellipse(x, y, radiusX, radiusY, Math.random() * Math.PI, 0, Math.PI * 2);
                 ctx.fill();
             }
 
-            return labToRgb(totalL / 4, totalA / 4, totalB / 4);
+            const avgRGB = labToRgb(totalL / 4, totalA / 4, totalB / 4);
+            return { canvas: canvas, avgRGB: avgRGB };
         }
 
-        function setupTrialBackground() {
+        // --- Initialize 3D Scene ---
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x222222);
+
+            // Bird of Prey perspective: Looking down at an angle
+            camera = new THREE.PerspectiveCamera(45, board.clientWidth / board.clientHeight, 0.1, 1000);
+            camera.position.set(0, 80, 50); 
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(board.clientWidth, board.clientHeight);
+            board.appendChild(renderer.domElement);
+
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Lighting: Ambient keeps true colors, Directional adds slight 3D pop to prey
+            scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+            dirLight.position.set(10, 50, 20);
+            scene.add(dirLight);
+
+            // Ground Plane (Unlit material so texture colors remain 100% mathematically accurate)
+            const planeGeo = new THREE.PlaneGeometry(PLANE_SIZE, PLANE_SIZE);
+            const planeMat = new THREE.MeshBasicMaterial({ color: 0xffffff }); 
+            groundMesh = new THREE.Mesh(planeGeo, planeMat);
+            groundMesh.rotation.x = -Math.PI / 2; // Lay flat
+            scene.add(groundMesh);
+
+            // Prey (Hemisphere - half sphere)
+            const preyGeo = new THREE.SphereGeometry(PREY_RADIUS, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            // Lambert material catches the directional light for a 3D beetle effect
+            const preyMat = new THREE.MeshLambertMaterial({ color: 0xffffff }); 
+            preyMesh = new THREE.Mesh(preyGeo, preyMat);
+            preyMesh.visible = false;
+            scene.add(preyMesh);
+
+            // Handle Resize
+            window.addEventListener('resize', () => {
+                if(!camera) return;
+                camera.aspect = board.clientWidth / board.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(board.clientWidth, board.clientHeight);
+            });
+        }
+
+        function setupTrial3D() {
             currentTrialMetrics = {
                 spatialFreq: Math.random() * 0.08 + 0.02, 
                 orientation: Math.random() * 2,           
@@ -326,38 +275,33 @@
                 baseL: 50, baseA: -10, baseB: 15          
             };
 
-            const bgCanvas = document.createElement('canvas');
-            bgCanvas.width = board.clientWidth;
-            bgCanvas.height = board.clientHeight;
+            const texData = generateTextureCanvas(currentTrialMetrics);
             
-            const preyRGB = generateBackground(bgCanvas, currentTrialMetrics);
-            
-            board.style.backgroundImage = `url(${bgCanvas.toDataURL()})`;
-            target.style.backgroundColor = `rgb(${preyRGB[0]}, ${preyRGB[1]}, ${preyRGB[2]})`;
+            // Apply texture to ground
+            const texture = new THREE.CanvasTexture(texData.canvas);
+            groundMesh.material.map = texture;
+            groundMesh.material.needsUpdate = true;
+
+            // Apply matched color to prey
+            preyMesh.material.color.setRGB(texData.avgRGB[0]/255, texData.avgRGB[1]/255, texData.avgRGB[2]/255);
         }
 
         startSessionBtn.addEventListener('click', () => {
-            const enteredId = participantInput.value.trim();
-            if (enteredId === "") {
-                alert("⚠️ Please enter a Participant ID before starting the experiment.");
-                participantInput.focus(); 
-                return; 
-            }
-            
+            const enteredId = document.getElementById('participant-id').value.trim();
+            if (enteredId === "") { alert("Enter Participant ID"); return; }
             participantId = enteredId;
-            participantInput.blur(); 
-
+            
             if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log("Fullscreen not supported or denied.");
-                });
+                document.documentElement.requestFullscreen().catch(err => console.log("FS error"));
             }
             
-            speedMultiplier = parseFloat(difficultySelect.value);
-            difficultyMode = difficultySelect.options[difficultySelect.selectedIndex].text;
-            isColorblind = colorblindCheck.checked ? "Yes" : "No";
-            deviceType = deviceSelect.options[deviceSelect.selectedIndex].value;
+            speedMultiplier = parseFloat(document.getElementById('difficulty-select').value);
+            difficultyMode = document.getElementById('difficulty-select').options[document.getElementById('difficulty-select').selectedIndex].text;
+            isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
+            deviceType = document.getElementById('device-select').value;
             
+            init3D(); // Start the engine
+
             introScreen.style.display = 'none';
             readyScreen.style.display = 'flex';
         });
@@ -366,188 +310,161 @@
             beginFirstTrialBtn.disabled = true;
             let cooldown = 3;
             beginFirstTrialBtn.innerText = `Starting in ${cooldown}...`;
-            
-            const cooldownTimer = setInterval(() => {
+            const cd = setInterval(() => {
                 cooldown--;
-                if (cooldown > 0) {
-                    beginFirstTrialBtn.innerText = `Starting in ${cooldown}...`;
-                } else {
-                    clearInterval(cooldownTimer);
-                    readyScreen.style.display = 'none';
-                    startTrial();
-                }
+                if (cooldown > 0) beginFirstTrialBtn.innerText = `Starting in ${cooldown}...`;
+                else { clearInterval(cd); readyScreen.style.display = 'none'; startTrial(); }
             }, 1000);
         });
 
         function startTrial() {
             trialCounter++;
-            trialCounterDisplay.innerText = `${trialCounter} / ${MAX_TRIALS}`;
-            
+            document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
             trialScreen.style.display = 'none';
-            misses = 0;
-            missDisplay.innerText = misses;
+            misses = 0; document.getElementById('miss-display').innerText = misses;
 
-            setupTrialBackground();
+            setupTrial3D();
             
-            const boardWidth = board.clientWidth;
-            const boardHeight = board.clientHeight;
-            
-            let targetSize = boardHeight * (60 / 600);
-            if (targetSize < 45) targetSize = 45;
-
-            target.style.width = `${targetSize}px`;
-            target.style.height = `${targetSize}px`; 
-
-            const maxX = boardWidth - targetSize;
-            const maxY = boardHeight - targetSize;
-            posX = Math.random() * maxX; 
-            posY = Math.random() * maxY;
-            
-            setInitialVelocity(boardWidth);
-
-            target.style.display = 'block';
-            gameActive = true;
-            startTime = Date.now();
-            
-            clearInterval(liveTimerInterval);
-            liveTimerInterval = setInterval(() => {
-                liveTimeDisplay.innerText = ((Date.now() - startTime) / 1000).toFixed(2);
-            }, 50);
-
-            lastFrameTime = performance.now();
-            animationFrameId = requestAnimationFrame(animateTarget);
-        }
-
-        function setInitialVelocity(boardWidth) {
-            const scaleFactor = boardWidth / 800; 
-            const basePixelsPerSecond = speedMultiplier * 60; 
-            const actualSpeedPPS = basePixelsPerSecond * scaleFactor;
+            // Spawn prey randomly on the 100x100 plane
+            const bounds = (PLANE_SIZE / 2) - PREY_RADIUS;
+            preyMesh.position.x = (Math.random() * 2 - 1) * bounds;
+            preyMesh.position.z = (Math.random() * 2 - 1) * bounds;
             
             const angle = Math.random() * 2 * Math.PI;
-            velocityX = Math.cos(angle) * actualSpeedPPS;
-            velocityY = Math.sin(angle) * actualSpeedPPS;
+            preyVelocity.set(Math.cos(angle) * speedMultiplier, 0, Math.sin(angle) * speedMultiplier);
+
+            preyMesh.visible = true;
+            gameActive = true;
+            startTime = Date.now();
+            lastFrameTime = performance.now();
+            
+            animate();
         }
 
-        function animateTarget(currentTime) {
+        function animate(currentTime) {
             if (!gameActive) return;
+            requestAnimationFrame(animate);
 
             let deltaTime = (currentTime - lastFrameTime) / 1000;
+            if(!deltaTime) deltaTime = 0; // Catch first frame NaN
             lastFrameTime = currentTime;
             if (deltaTime > 0.1) deltaTime = 0.1; 
 
-            posX += velocityX * deltaTime; 
-            posY += velocityY * deltaTime;
-            
-            const maxX = board.clientWidth - target.clientWidth;
-            const maxY = board.clientHeight - target.clientHeight;
+            // Update Time UI
+            document.getElementById('live-time-display').innerText = ((Date.now() - startTime) / 1000).toFixed(2);
 
-            if (posX <= 0) { posX = 0; velocityX *= -1; }
-            if (posX >= maxX) { posX = maxX; velocityX *= -1; }
-            if (posY <= 0) { posY = 0; velocityY *= -1; }
-            if (posY >= maxY) { posY = maxY; velocityY *= -1; }
-
-            target.style.left = posX + 'px'; 
-            target.style.top = posY + 'px';
+            // Move Prey
+            preyMesh.position.addScaledVector(preyVelocity, deltaTime);
             
-            animationFrameId = requestAnimationFrame(animateTarget);
+            // Bounce off edges
+            const bounds = (PLANE_SIZE / 2) - PREY_RADIUS;
+            if (preyMesh.position.x > bounds || preyMesh.position.x < -bounds) {
+                preyVelocity.x *= -1;
+                preyMesh.position.x = Math.max(-bounds, Math.min(bounds, preyMesh.position.x));
+            }
+            if (preyMesh.position.z > bounds || preyMesh.position.z < -bounds) {
+                preyVelocity.z *= -1;
+                preyMesh.position.z = Math.max(-bounds, Math.min(bounds, preyMesh.position.z));
+            }
+
+            renderer.render(scene, camera);
         }
 
-        function handleTargetCaught(event) {
+        // --- 3D INTERACTION (Raycasting) ---
+        function onInteract(event) {
             if (!gameActive) return;
-            event.stopPropagation(); 
-            if (event.cancelable) event.preventDefault(); 
+            if (event.cancelable) event.preventDefault();
             
-            gameActive = false;
-            cancelAnimationFrame(animationFrameId);
-            clearInterval(liveTimerInterval);
+            let clientX, clientY;
+            if (event.changedTouches) {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
+            } else {
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
 
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // Check if Prey was hit
+            const preyHit = raycaster.intersectObject(preyMesh);
+            if (preyHit.length > 0) {
+                handleTargetCaught();
+                return;
+            }
+
+            // If not prey, did they hit the ground?
+            const groundHit = raycaster.intersectObject(groundMesh);
+            if (groundHit.length > 0) {
+                if (Date.now() - lastMissTime < 100) return; // Debounce
+                lastMissTime = Date.now();
+                misses++;
+                document.getElementById('miss-display').innerText = misses;
+            }
+        }
+
+        function handleTargetCaught() {
+            gameActive = false;
             const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
             
             sessionData.push([
-                participantId,
-                deviceType,
-                difficultyMode,
-                isColorblind,
-                trialCounter,
-                reactionTime,
-                misses,
+                participantId, deviceType, difficultyMode, isColorblind, trialCounter,
+                reactionTime, misses,
                 currentTrialMetrics.spatialFreq.toFixed(4),
                 currentTrialMetrics.lumContrast.toFixed(2),
                 currentTrialMetrics.colorClutter.toFixed(2),
                 currentTrialMetrics.orientation.toFixed(2)
             ]);
             
-            target.style.display = 'none'; 
+            preyMesh.visible = false; 
+            renderer.render(scene, camera); // Render one last frame to hide prey
             
             if (trialCounter >= MAX_TRIALS) {
                 endScreen.style.display = 'flex';
             } else {
-                trialTimeDisplay.innerText = reactionTime;
+                document.getElementById('trial-time').innerText = reactionTime;
                 trialScreen.style.display = 'flex'; 
-                
                 nextTrialBtn.disabled = true;
-                let cooldown = 3;
-                nextTrialBtn.innerText = `Please wait (${cooldown}s)...`;
+                let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
                 
-                const cooldownTimer = setInterval(() => {
-                    cooldown--;
-                    if (cooldown > 0) {
-                        nextTrialBtn.innerText = `Please wait (${cooldown}s)...`;
-                    } else {
-                        clearInterval(cooldownTimer);
-                        nextTrialBtn.disabled = false;
-                        nextTrialBtn.innerText = "Start Next Trial";
+                const cdTimer = setInterval(() => {
+                    cd--;
+                    if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                    else {
+                        clearInterval(cdTimer); nextTrialBtn.disabled = false;
+                        nextTrialBtn.innerText = "Start Next Hunt";
                     }
                 }, 1000);
             }
         }
 
-        function handleBoardMiss(event) {
-            if (!gameActive) return;
-            if (event.cancelable) event.preventDefault(); 
-            
-            if (Date.now() - lastMissTime < 100) return; 
-            lastMissTime = Date.now();
-            
-            misses++;
-            missDisplay.innerText = misses;
-        }
-
-        target.addEventListener('mousedown', handleTargetCaught);
-        target.addEventListener('touchstart', handleTargetCaught, {passive: false});
-        board.addEventListener('mousedown', handleBoardMiss);
-        board.addEventListener('touchstart', handleBoardMiss, {passive: false});
+        // Bind events to the renderer canvas
+        board.addEventListener('mousedown', onInteract);
+        board.addEventListener('touchstart', onInteract, {passive: false});
         nextTrialBtn.addEventListener('click', startTrial);
 
         finishSessionBtn.addEventListener('click', () => {
             finishSessionBtn.disabled = true;
-            uploadStatus.style.display = 'block';
-            uploadStatus.innerText = "Uploading data to Google Sheets...";
-            uploadStatus.style.color = "#f1c40f"; 
+            uploadStatus.style.display = 'block'; uploadStatus.style.color = "#f1c40f"; 
             
-            // --- IMPORTANT: Paste your actual Google Exec Link here ---
             const googleScriptURL = "https://script.google.com/macros/s/AKfycbxe6qLgGKb-apk3aD9LkGNkf6mT2Z4ACO6KMPkGJSG22d5UNoDx3rHEmb4vREJueYEh_A/exec"; 
 
-            // Using no-cors to bypass GitHub Pages security blocks
             fetch(googleScriptURL, {
-                method: 'POST',
-                mode: 'no-cors',
+                method: 'POST', mode: 'no-cors',
                 body: JSON.stringify(sessionData),
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' }
             })
             .then(() => {
-                uploadStatus.innerText = "Upload Complete! Refresh page for next participant.";
-                uploadStatus.style.color = "#2ecc71"; 
-                
-                if (document.fullscreenElement) {
-                    document.exitFullscreen();
-                }
+                uploadStatus.innerText = "Upload Complete!"; uploadStatus.style.color = "#2ecc71"; 
+                if (document.fullscreenElement) document.exitFullscreen();
                 alert("Upload Complete! Data is safely in your Google Sheet.");
             })
             .catch(error => {
-                console.error('Error!', error);
-                uploadStatus.innerText = "Error uploading data. Check your internet/URL.";
-                uploadStatus.style.color = "#e74c3c"; 
+                uploadStatus.innerText = "Error uploading data."; uploadStatus.style.color = "#e74c3c"; 
                 finishSessionBtn.disabled = false;
             });
         });
