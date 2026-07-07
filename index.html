@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Procedural Pilot</title>
+    <title>Catch the Circle - Psychophysics Pilot</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -243,9 +243,9 @@
         let speedMultiplier = 6;
         let trialCounter = 0;
         let sessionData = []; 
-        let currentTrialMetrics = {}; // Store metrics for the active trial
+        let currentTrialMetrics = {}; 
 
-        // --- NEW: CIELAB to sRGB Conversion ---
+        // --- CIELAB to sRGB Conversion ---
         function labToRgb(l, a, b) {
             let y = (l + 16) / 116,
                 x = a / 500 + y,
@@ -271,40 +271,69 @@
             ];
         }
 
-        // --- NEW: Procedural Background Generator ---
+        // --- Sharp Camouflage Generator ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d');
             const width = canvas.width;
             const height = canvas.height;
-            const imgData = ctx.createImageData(width, height);
-            const data = imgData.data;
 
+            // Generate a palette of 4 colors based on CIELAB variances
+            const palette = [];
             let totalL = 0, totalA = 0, totalB = 0;
 
-            for (let y = 0; y < height; y++) {
-                for (let x = 0; x < width; x++) {
-                    const spatialNoise = Math.sin(x * metrics.spatialFreq) * Math.cos(y * metrics.spatialFreq);
-                    const orientationNoise = Math.sin((x * Math.cos(metrics.orientation) + y * Math.sin(metrics.orientation)) * metrics.spatialFreq * 2);
-                    const combinedNoise = (spatialNoise + orientationNoise) / 2;
+            for (let i = 0; i < 4; i++) {
+                const l = metrics.baseL + (Math.random() * 2 - 1) * metrics.lumContrast;
+                const a = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
+                const b = metrics.baseB + (Math.random() * 2 - 1) * metrics.colorClutter;
 
-                    const l = metrics.baseL + (combinedNoise * metrics.lumContrast);
-                    const a = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
-                    const b = metrics.baseB + (Math.random() * 2 - 1) * metrics.colorClutter;
-
-                    totalL += l; totalA += a; totalB += b;
-                    const rgb = labToRgb(l, a, b);
-
-                    const index = (y * width + x) * 4;
-                    data[index] = rgb[0];
-                    data[index + 1] = rgb[1];
-                    data[index + 2] = rgb[2];
-                    data[index + 3] = 255;
-                }
+                totalL += l; totalA += a; totalB += b;
+                palette.push(labToRgb(l, a, b));
             }
 
-            ctx.putImageData(imgData, 0, 0);
-            const pixelCount = width * height;
-            return labToRgb(totalL / pixelCount, totalA / pixelCount, totalB / pixelCount);
+            // Fill base background
+            ctx.fillStyle = `rgb(${palette[0][0]}, ${palette[0][1]}, ${palette[0][2]})`;
+            ctx.fillRect(0, 0, width, height);
+
+            const baseSize = (width + height) / 2;
+            const blobCount = Math.floor(metrics.spatialFreq * 3000) + 100;
+            const maxRadius = baseSize / (metrics.spatialFreq * 40 + 2);
+
+            // Draw sharp, overlapping blobs
+            for (let i = 0; i < blobCount; i++) {
+                const x = Math.random() * width;
+                const y = Math.random() * height;
+                
+                const radiusX = Math.random() * maxRadius + 5;
+                const radiusY = (Math.random() > 0.5) ? radiusX : radiusX * (Math.random() * metrics.orientation + 0.5);
+
+                const color = palette[Math.floor(Math.random() * palette.length)];
+                ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+
+                ctx.beginPath();
+                ctx.ellipse(x, y, radiusX, radiusY, Math.random() * Math.PI, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            return labToRgb(totalL / 4, totalA / 4, totalB / 4);
+        }
+
+        function setupTrialBackground() {
+            currentTrialMetrics = {
+                spatialFreq: Math.random() * 0.08 + 0.02, 
+                orientation: Math.random() * 2,           
+                lumContrast: Math.random() * 50 + 20,     
+                colorClutter: Math.random() * 40 + 10,    
+                baseL: 50, baseA: -10, baseB: 15          
+            };
+
+            const bgCanvas = document.createElement('canvas');
+            bgCanvas.width = board.clientWidth;
+            bgCanvas.height = board.clientHeight;
+            
+            const preyRGB = generateBackground(bgCanvas, currentTrialMetrics);
+            
+            board.style.backgroundImage = `url(${bgCanvas.toDataURL()})`;
+            target.style.backgroundColor = `rgb(${preyRGB[0]}, ${preyRGB[1]}, ${preyRGB[2]})`;
         }
 
         startSessionBtn.addEventListener('click', () => {
@@ -350,26 +379,6 @@
             }, 1000);
         });
 
-        function setupTrialBackground() {
-            // Randomize metrics for this specific trial
-            currentTrialMetrics = {
-                spatialFreq: Math.random() * 0.05 + 0.01, // 0.01 (large) to 0.06 (fine)
-                orientation: Math.random() * Math.PI,     // 0 to PI
-                lumContrast: Math.random() * 40 + 10,     // 10 to 50
-                colorClutter: Math.random() * 20,         // 0 to 20
-                baseL: 45, baseA: -15, baseB: 20          // Forest floor baseline
-            };
-
-            const bgCanvas = document.createElement('canvas');
-            bgCanvas.width = board.clientWidth;
-            bgCanvas.height = board.clientHeight;
-            
-            const preyRGB = generateBackground(bgCanvas, currentTrialMetrics);
-            
-            board.style.backgroundImage = `url(${bgCanvas.toDataURL()})`;
-            target.style.backgroundColor = `rgb(${preyRGB[0]}, ${preyRGB[1]}, ${preyRGB[2]})`;
-        }
-
         function startTrial() {
             trialCounter++;
             trialCounterDisplay.innerText = `${trialCounter} / ${MAX_TRIALS}`;
@@ -378,7 +387,6 @@
             misses = 0;
             missDisplay.innerText = misses;
 
-            // Generate procedural background
             setupTrialBackground();
             
             const boardWidth = board.clientWidth;
@@ -455,7 +463,6 @@
 
             const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
             
-            // --- UPDATED CSV DATA PAYLOAD ---
             sessionData.push([
                 participantId,
                 deviceType,
@@ -518,15 +525,17 @@
             uploadStatus.innerText = "Uploading data to Google Sheets...";
             uploadStatus.style.color = "#f1c40f"; 
             
-            // --- YOUR WEB APP URL GOES HERE ---
-            const googleScriptURL = "https://script.google.com/macros/s/AKfycbyhhLfLPLdhaxM0e--kkzCr2eO9bgRbBZRsOY13BYvySzAgqFDr1zjVChBg_bQ1gTQewA/exec"; 
+            // --- IMPORTANT: Paste your actual Google Exec Link here ---
+            const googleScriptURL = "https://script.google.com/macros/s/AKfycbz_kC55rmhm8uCjgJDCyYSSUJcC2iRmuuUQzkdK14PAMLLgeGAG4XHsi2jnehzxiSr5/exec"; 
 
+            // Using no-cors to bypass GitHub Pages security blocks
             fetch(googleScriptURL, {
                 method: 'POST',
+                mode: 'no-cors',
                 body: JSON.stringify(sessionData),
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' }
             })
-            .then(response => {
+            .then(() => {
                 uploadStatus.innerText = "Upload Complete! Refresh page for next participant.";
                 uploadStatus.style.color = "#2ecc71"; 
                 
@@ -537,7 +546,7 @@
             })
             .catch(error => {
                 console.error('Error!', error);
-                uploadStatus.innerText = "Error uploading data. Check your internet.";
+                uploadStatus.innerText = "Error uploading data. Check your internet/URL.";
                 uploadStatus.style.color = "#e74c3c"; 
                 finishSessionBtn.disabled = false;
             });
