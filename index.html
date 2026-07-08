@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Fullscreen Camouflage</title>
+    <title>Catch the Circle - Precision Edition</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -41,8 +41,8 @@
             top: 0;
             left: 0;
             width: 100%; 
-            background: rgba(0, 0, 0, 0.65); /* Semi-transparent so camo shows through */
-            backdrop-filter: blur(4px); /* Blurs the camo under the text for readability */
+            background: rgba(0, 0, 0, 0.65);
+            backdrop-filter: blur(4px); 
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -60,6 +60,8 @@
             border-radius: 50%; 
             box-shadow: 0 0 6px rgba(0,0,0,0.5);
             z-index: 5;
+            /* Disable pointer events so clicks pass through to the game-board for math detection */
+            pointer-events: none; 
         }
 
         /* HARD PORTRAIT LOCK OVERLAY */
@@ -411,69 +413,95 @@
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
-        function handleTargetCaught(event) {
+        // --- MATH-BASED HIT DETECTION ---
+        function handleInteraction(event) {
             if (!gameActive) return;
-            event.stopPropagation(); 
             if (event.cancelable) event.preventDefault(); 
+            if (Date.now() - lastMissTime < 100) return; // Debounce multi-clicks
             
-            gameActive = false;
-            cancelAnimationFrame(animationFrameId);
-            clearInterval(liveTimerInterval);
-
-            const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
-            
-            const screenWidth = window.innerWidth;
-            const screenHeight = window.innerHeight;
-            const dpr = window.devicePixelRatio || 1;
-            const orientation = screenWidth > screenHeight ? "Landscape" : "Portrait";
-            
-            sessionData.push([
-                participantId, deviceType, difficultyMode, isColorblind, trialCounter,
-                reactionTime, misses,
-                currentTrialMetrics.spatialFreq.toFixed(4),
-                currentTrialMetrics.lumContrast.toFixed(2),
-                currentTrialMetrics.colorClutter.toFixed(2),
-                currentTrialMetrics.condition,
-                screenWidth,
-                screenHeight,
-                dpr,
-                orientation
-            ]);
-            
-            target.style.display = 'none'; 
-            
-            if (trialCounter >= MAX_TRIALS) {
-                endScreen.style.display = 'flex';
+            // 1. Get exact X/Y coordinates relative to the game board
+            let clientX, clientY;
+            if (event.type === 'touchstart' || event.type === 'touchmove') {
+                clientX = event.changedTouches[0].clientX;
+                clientY = event.changedTouches[0].clientY;
             } else {
-                document.getElementById('trial-time').innerText = reactionTime;
-                trialScreen.style.display = 'flex'; 
-                nextTrialBtn.disabled = true;
-                let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
+
+            const boardRect = board.getBoundingClientRect();
+            const clickX = clientX - boardRect.left;
+            const clickY = clientY - boardRect.top;
+
+            // 2. Calculate target center point
+            const targetRadius = target.clientWidth / 2;
+            const targetCenterX = posX + targetRadius;
+            const targetCenterY = posY + targetRadius;
+
+            // 3. Pythagorean theorem to find distance
+            const dx = clickX - targetCenterX;
+            const dy = clickY - targetCenterY;
+            const distance = Math.sqrt((dx * dx) + (dy * dy));
+
+            // 4. Hit Detection with a 15px "forgiveness" margin
+            const forgivenessMargin = 15; 
+
+            if (distance <= (targetRadius + forgivenessMargin)) {
+                // --- TARGET CAUGHT ---
+                gameActive = false;
+                cancelAnimationFrame(animationFrameId);
+                clearInterval(liveTimerInterval);
+
+                const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
                 
-                const cdTimer = setInterval(() => {
-                    cd--;
-                    if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                    else {
-                        clearInterval(cdTimer); nextTrialBtn.disabled = false;
-                        nextTrialBtn.innerText = "Start Next Trial";
-                    }
-                }, 1000);
+                const screenWidth = window.innerWidth;
+                const screenHeight = window.innerHeight;
+                const dpr = window.devicePixelRatio || 1;
+                const orientation = screenWidth > screenHeight ? "Landscape" : "Portrait";
+                
+                sessionData.push([
+                    participantId, deviceType, difficultyMode, isColorblind, trialCounter,
+                    reactionTime, misses,
+                    currentTrialMetrics.spatialFreq.toFixed(4),
+                    currentTrialMetrics.lumContrast.toFixed(2),
+                    currentTrialMetrics.colorClutter.toFixed(2),
+                    currentTrialMetrics.condition,
+                    screenWidth,
+                    screenHeight,
+                    dpr,
+                    orientation
+                ]);
+                
+                target.style.display = 'none'; 
+                
+                if (trialCounter >= MAX_TRIALS) {
+                    endScreen.style.display = 'flex';
+                } else {
+                    document.getElementById('trial-time').innerText = reactionTime;
+                    trialScreen.style.display = 'flex'; 
+                    nextTrialBtn.disabled = true;
+                    let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                    
+                    const cdTimer = setInterval(() => {
+                        cd--;
+                        if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                        else {
+                            clearInterval(cdTimer); nextTrialBtn.disabled = false;
+                            nextTrialBtn.innerText = "Start Next Trial";
+                        }
+                    }, 1000);
+                }
+            } else {
+                // --- MISS ---
+                lastMissTime = Date.now();
+                misses++;
+                document.getElementById('miss-display').innerText = misses;
             }
         }
 
-        function handleBoardMiss(event) {
-            if (!gameActive) return;
-            if (event.cancelable) event.preventDefault(); 
-            if (Date.now() - lastMissTime < 100) return; 
-            lastMissTime = Date.now();
-            misses++;
-            document.getElementById('miss-display').innerText = misses;
-        }
-
-        target.addEventListener('mousedown', handleTargetCaught);
-        target.addEventListener('touchstart', handleTargetCaught, {passive: false});
-        board.addEventListener('mousedown', handleBoardMiss);
-        board.addEventListener('touchstart', handleBoardMiss, {passive: false});
+        // Single, unified interaction listener on the board
+        board.addEventListener('mousedown', handleInteraction);
+        board.addEventListener('touchstart', handleInteraction, {passive: false});
         nextTrialBtn.addEventListener('click', startTrial);
 
         finishSessionBtn.addEventListener('click', () => {
@@ -494,7 +522,6 @@
                 uploadStatus.innerText = "Upload Complete! Refresh page for next participant.";
                 uploadStatus.style.color = "#2ecc71"; 
                 if (document.fullscreenElement) document.exitFullscreen();
-                alert("Upload Complete! Data is safely in your Google Sheet.");
             })
             .catch(error => {
                 console.error('Error!', error);
