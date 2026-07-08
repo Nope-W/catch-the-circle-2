@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Hard Mode</title>
+    <title>Catch the Circle - Hard Mode & Metrics</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -20,6 +20,18 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
+        }
+        
+        /* HARD PORTRAIT LOCK OVERLAY */
+        #portrait-lock {
+            display: none;
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #c0392b; color: white; z-index: 10000;
+            flex-direction: column; justify-content: center; align-items: center;
+            font-size: 1.5rem; font-weight: bold; padding: 20px; text-align: center;
+        }
+        @media (orientation: portrait) {
+            #portrait-lock { display: flex; }
         }
         
         .header-container { width: 100%; padding: 5px 0; flex-shrink: 0; }
@@ -86,17 +98,20 @@
         .danger-btn:hover { background-color: #2980b9; }
         
         #upload-status { margin-top: 15px; font-weight: bold; color: #f1c40f; display: none; }
-        #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
-        @media (orientation: portrait) { #rotate-hint { display: block; } }
     </style>
 </head>
 <body>
+
+    <div id="portrait-lock">
+        <span style="font-size: 3rem; margin-bottom: 20px;">🔄</span>
+        Please rotate your device to landscape mode to play.
+    </div>
 
     <div id="intro-screen" class="overlay-screen">
         <h2>Catch the Circle</h2>
         <div class="instructions-box">
             <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged bouncing circle as fast as you can (10 trials).</p>
-            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site" and rotate to Landscape.</p>
+            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site". Landscape mode is strictly required.</p>
         </div>
         <label class="checkbox-group">
             <input type="checkbox" id="colorblind-check"> I have a color vision deficiency
@@ -137,7 +152,6 @@
 
     <div class="header-container">
         <h1>Catch the Circle</h1>
-        <div id="rotate-hint">📱 Phone Users: Rotate to Landscape</div>
         <div class="stats">
             <div>Trial: <strong id="trial-counter-display">0 / 10</strong></div>
             <div>Time: <strong id="live-time-display">0.00</strong> s</div>
@@ -172,7 +186,7 @@
         let isColorblind = "No";
         let deviceType = "Laptop/Desktop";
         
-        // Speed and Difficulty are now locked.
+        // Speed and Difficulty are locked.
         const speedMultiplier = 10; 
         const difficultyMode = "Hard";
         
@@ -286,6 +300,12 @@
         }
 
         startSessionBtn.addEventListener('click', () => {
+            // Failsafe check for portrait mode via JS 
+            if (window.innerHeight > window.innerWidth) {
+                alert("Please rotate your device to landscape before starting.");
+                return;
+            }
+
             const enteredId = document.getElementById('participant-id').value.trim();
             if (enteredId === "") { alert("Please enter Participant ID"); return; }
             participantId = enteredId;
@@ -385,13 +405,24 @@
 
             const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
             
+            // Collect Screen Metrics
+            const screenWidth = window.innerWidth;
+            const screenHeight = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            const orientation = screenWidth > screenHeight ? "Landscape" : "Portrait";
+            
+            // Add to Data Payload
             sessionData.push([
                 participantId, deviceType, difficultyMode, isColorblind, trialCounter,
                 reactionTime, misses,
                 currentTrialMetrics.spatialFreq.toFixed(4),
                 currentTrialMetrics.lumContrast.toFixed(2),
                 currentTrialMetrics.colorClutter.toFixed(2),
-                currentTrialMetrics.condition
+                currentTrialMetrics.condition,
+                screenWidth,
+                screenHeight,
+                dpr,
+                orientation
             ]);
             
             target.style.display = 'none'; 
