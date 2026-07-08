@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Digital Camouflage</title>
+    <title>Catch the Circle - Hard Mode</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -114,14 +114,6 @@
                     <option value="Smartphone">Smartphone</option>
                 </select>
             </div>
-            <div class="control-group">
-                <label>Target Speed</label>
-                <select id="difficulty-select">
-                    <option value="3">Easy (Slow)</option>
-                    <option value="6" selected>Medium (Standard)</option>
-                    <option value="10">Hard (Fast)</option>
-                </select>
-            </div>
         </div>
         <button id="start-session-btn">Start Experiment</button>
     </div>
@@ -175,8 +167,15 @@
         let startTime = 0, misses = 0, gameActive = false, trialCounter = 0;
         let liveTimerInterval, animationFrameId, lastFrameTime = 0, lastMissTime = 0; 
         let posX = 0, posY = 0, velocityX = 0, velocityY = 0;
-        let participantId = "Unknown", difficultyMode = "Medium", isColorblind = "No", deviceType = "Laptop/Desktop";
-        let speedMultiplier = 6;
+        
+        let participantId = "Unknown";
+        let isColorblind = "No";
+        let deviceType = "Laptop/Desktop";
+        
+        // Speed and Difficulty are now locked.
+        const speedMultiplier = 10; 
+        const difficultyMode = "Hard";
+        
         let sessionData = []; let currentTrialMetrics = {}; 
 
         // --- CIELAB to sRGB Conversion ---
@@ -200,7 +199,6 @@
             const width = canvas.width;
             const height = canvas.height;
 
-            // 1. Generate a discrete palette (3 to 6 colors) to mimic the digital photos
             const paletteSize = Math.floor(Math.random() * 4) + 3; 
             const palette = [];
             
@@ -211,34 +209,27 @@
                 palette.push(labToRgb(l, a, b));
             }
 
-            // Fill base canvas with the first color
             ctx.fillStyle = `rgb(${palette[0][0]}, ${palette[0][1]}, ${palette[0][2]})`;
             ctx.fillRect(0, 0, width, height);
 
-            // 2. Determine rectangle count and sizes based on spatial frequency
-            // Higher freq = many tiny blocks. Lower freq = fewer massive blocks.
             const rectCount = Math.floor(metrics.spatialFreq * 50000) + 100;
             const maxRectSize = (width + height) / (metrics.spatialFreq * 100 + 10);
 
-            // 3. Draw overlapping blocks
             for (let i = 0; i < rectCount; i++) {
                 const w = Math.random() * maxRectSize + 10;
                 const h = Math.random() * maxRectSize + 10;
                 const x = Math.random() * (width + w) - w;
                 const y = Math.random() * (height + h) - h;
 
-                // Pick a random color from our generated palette
                 const color = palette[Math.floor(Math.random() * palette.length)];
                 ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
                 ctx.fillRect(x, y, w, h);
             }
 
-            // 4. Calculate exact average color of the final rendered canvas for the prey
             const imgData = ctx.getImageData(0, 0, width, height).data;
             let sumR = 0, sumG = 0, sumB = 0;
             const pixels = width * height;
             
-            // Sample every 4th pixel for performance speed
             for (let i = 0; i < imgData.length; i += 16) {
                 sumR += imgData[i];
                 sumG += imgData[i+1];
@@ -250,10 +241,7 @@
 
         // --- Structured Camouflage Trials ---
         function setupTrialBackground() {
-            // Pick a random spatial frequency for block size
             const randomFreq = 0.01 + (Math.random() * 0.08); 
-            
-            // Randomize the base hue (Green/Brown spectrum)
             const randomBaseA = -25 + (Math.random() * 35);
             const randomBaseB = 10 + (Math.random() * 30);
             
@@ -261,21 +249,17 @@
             let colorVariance = 0;
             let conditionType = "";
 
-            // Randomly select one of the three visual ecology conditions
             const conditionRoll = Math.random();
             
             if (conditionRoll < 0.33) {
-                // Condition A: Hue Variance Only (Isoluminant)
                 lumVariance = 0; 
                 colorVariance = 25 + (Math.random() * 20);
                 conditionType = "Hue_Only";
             } else if (conditionRoll < 0.66) {
-                // Condition B: Luminance Variance Only (Monochrome)
                 lumVariance = 25 + (Math.random() * 25);
                 colorVariance = 0;
                 conditionType = "Luminance_Only";
             } else {
-                // Condition C: Both Hue and Luminance Variance
                 lumVariance = 25 + (Math.random() * 25);
                 colorVariance = 25 + (Math.random() * 20);
                 conditionType = "Hue_And_Luminance";
@@ -285,14 +269,13 @@
                 spatialFreq: randomFreq,
                 lumContrast: lumVariance,
                 colorClutter: colorVariance,
-                condition: conditionType, // We will log this in the CSV
+                condition: conditionType, 
                 baseL: 50, 
                 baseA: randomBaseA, 
                 baseB: randomBaseB 
             };
 
             const bgCanvas = document.createElement('canvas');
-            // Higher res canvas to ensure sharp block edges
             bgCanvas.width = board.clientWidth;
             bgCanvas.height = board.clientHeight;
             
@@ -307,11 +290,11 @@
             if (enteredId === "") { alert("Please enter Participant ID"); return; }
             participantId = enteredId;
             document.getElementById('participant-id').blur(); 
+            
             if (document.documentElement.requestFullscreen) {
                 document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
             }
-            speedMultiplier = parseFloat(document.getElementById('difficulty-select').value);
-            difficultyMode = document.getElementById('difficulty-select').options[document.getElementById('difficulty-select').selectedIndex].text;
+            
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
             
@@ -402,7 +385,6 @@
 
             const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
             
-            // Included currentTrialMetrics.condition to explicitly log the camo type
             sessionData.push([
                 participantId, deviceType, difficultyMode, isColorblind, trialCounter,
                 reactionTime, misses,
@@ -454,8 +436,7 @@
             uploadStatus.innerText = "Uploading data to Google Sheets...";
             uploadStatus.style.color = "#f1c40f"; 
             
-            // --- IMPORTANT: Paste your actual Google Exec Link here ---
-            const googleScriptURL = "https://script.google.com/macros/s/AKfycbz_kC55rmhm8uCjgJDCyYSSUJcC2iRmuuUQzkdK14PAMLLgeGAG4XHsi2jnehzxiSr5/exec"; 
+            const googleScriptURL = "https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec"; 
 
             fetch(googleScriptURL, {
                 method: 'POST',
