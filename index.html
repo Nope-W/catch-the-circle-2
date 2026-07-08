@@ -3,25 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Hard Mode & Metrics</title>
+    <title>Catch the Circle - Fullscreen Camouflage</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
             font-family: sans-serif; 
             text-align: center; 
-            background-color: #222; 
+            background-color: #000; 
             color: #fff; 
             margin: 0; 
             padding: 0; 
             width: 100vw;
             height: 100dvh; 
             overflow: hidden; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
         }
         
+        /* FULLSCREEN GAME BOARD */
+        #game-board { 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw; 
+            height: 100dvh; 
+            background-color: #222; 
+            background-size: cover; 
+            background-position: center; 
+            background-repeat: no-repeat;
+            overflow: hidden; 
+            cursor: crosshair;
+            touch-action: none; 
+            z-index: 1;
+        }
+
+        /* OVERLAY HUD HEADER */
+        .header-container { 
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%; 
+            background: rgba(0, 0, 0, 0.65); /* Semi-transparent so camo shows through */
+            backdrop-filter: blur(4px); /* Blurs the camo under the text for readability */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px; 
+            box-sizing: border-box;
+            z-index: 10;
+        }
+        
+        h1 { font-size: 1.2rem; margin: 0; text-align: left; text-transform: uppercase; letter-spacing: 1px;}
+        .stats { display: flex; gap: 20px; font-size: 1.1rem; margin: 0; }
+        
+        #target { 
+            position: absolute; 
+            display: none; 
+            border-radius: 50%; 
+            box-shadow: 0 0 6px rgba(0,0,0,0.5);
+            z-index: 5;
+        }
+
         /* HARD PORTRAIT LOCK OVERLAY */
         #portrait-lock {
             display: none;
@@ -34,36 +74,6 @@
             #portrait-lock { display: flex; }
         }
         
-        .header-container { width: 100%; padding: 5px 0; flex-shrink: 0; }
-        h1 { font-size: 1.5rem; margin: 5px 0; }
-        
-        #game-board { 
-            width: 100%; 
-            max-width: 90vw; 
-            height: auto;
-            max-height: 70dvh; 
-            aspect-ratio: 16 / 9; 
-            margin: 0 auto; 
-            position: relative; 
-            background-color: #444; 
-            background-size: cover; 
-            background-position: center; 
-            background-repeat: no-repeat;
-            border: 3px solid #fff; 
-            border-radius: 8px; 
-            overflow: hidden; 
-            cursor: crosshair;
-            touch-action: none; 
-        }
-        
-        #target { 
-            position: absolute; 
-            display: none; 
-            border-radius: 50%; 
-            box-shadow: 0 0 6px rgba(0,0,0,0.5);
-            z-index: 5;
-        }
-        
         /* OVERLAY SCREENS */
         .overlay-screen { 
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
@@ -74,7 +84,6 @@
         
         .overlay-screen h2 { margin-top: 0; color: #4CAF50; font-size: 1.6rem; margin-bottom: 10px; }
         #trial-screen, #end-screen, #ready-screen { display: none; justify-content: center; } 
-        .stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; font-size: 1.1rem; margin-bottom: 5px; }
         
         .instructions-box {
             max-width: 600px; background-color: rgba(255, 255, 255, 0.1);
@@ -98,6 +107,8 @@
         .danger-btn:hover { background-color: #2980b9; }
         
         #upload-status { margin-top: 15px; font-weight: bold; color: #f1c40f; display: none; }
+        #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
+        @media (orientation: portrait) { #rotate-hint { display: block; } }
     </style>
 </head>
 <body>
@@ -105,6 +116,20 @@
     <div id="portrait-lock">
         <span style="font-size: 3rem; margin-bottom: 20px;">🔄</span>
         Please rotate your device to landscape mode to play.
+    </div>
+
+    <div class="header-container">
+        <h1>Catch the Circle</h1>
+        <div id="rotate-hint">📱 Rotate to Landscape</div>
+        <div class="stats">
+            <div>Trial: <strong id="trial-counter-display">0 / 10</strong></div>
+            <div>Time: <strong id="live-time-display">0.00</strong> s</div>
+            <div>Misses: <strong id="miss-display">0</strong></div>
+        </div>
+    </div>
+
+    <div id="game-board">
+        <div id="target"></div>
     </div>
 
     <div id="intro-screen" class="overlay-screen">
@@ -148,19 +173,6 @@
         <h2>Experiment Complete</h2>
         <button id="finish-session-btn" class="danger-btn">Finish Session & Upload Data</button>
         <div id="upload-status">Uploading data to Google Sheets...</div>
-    </div>
-
-    <div class="header-container">
-        <h1>Catch the Circle</h1>
-        <div class="stats">
-            <div>Trial: <strong id="trial-counter-display">0 / 10</strong></div>
-            <div>Time: <strong id="live-time-display">0.00</strong> s</div>
-            <div>Misses: <strong id="miss-display">0</strong></div>
-        </div>
-    </div>
-
-    <div id="game-board">
-        <div id="target"></div>
     </div>
 
     <script>
@@ -290,6 +302,7 @@
             };
 
             const bgCanvas = document.createElement('canvas');
+            // Background is now completely full screen
             bgCanvas.width = board.clientWidth;
             bgCanvas.height = board.clientHeight;
             
@@ -300,7 +313,6 @@
         }
 
         startSessionBtn.addEventListener('click', () => {
-            // Failsafe check for portrait mode via JS 
             if (window.innerHeight > window.innerWidth) {
                 alert("Please rotate your device to landscape before starting.");
                 return;
@@ -348,10 +360,13 @@
             target.style.width = `${targetSize}px`;
             target.style.height = `${targetSize}px`; 
 
+            // Prevent target from spawning underneath the HUD header
+            const headerHeight = document.querySelector('.header-container').offsetHeight || 50;
             const maxX = boardWidth - targetSize;
             const maxY = boardHeight - targetSize;
+            
             posX = Math.random() * maxX; 
-            posY = Math.random() * maxY;
+            posY = headerHeight + Math.random() * (maxY - headerHeight);
             
             const scaleFactor = boardWidth / 800; 
             const actualSpeedPPS = (speedMultiplier * 60) * scaleFactor;
@@ -381,12 +396,14 @@
             posX += velocityX * deltaTime; 
             posY += velocityY * deltaTime;
             
+            const headerHeight = document.querySelector('.header-container').offsetHeight || 50;
             const maxX = board.clientWidth - target.clientWidth;
             const maxY = board.clientHeight - target.clientHeight;
 
+            // Bouncing logic (confined below the HUD overlay)
             if (posX <= 0) { posX = 0; velocityX *= -1; }
             if (posX >= maxX) { posX = maxX; velocityX *= -1; }
-            if (posY <= 0) { posY = 0; velocityY *= -1; }
+            if (posY <= headerHeight) { posY = headerHeight; velocityY *= -1; }
             if (posY >= maxY) { posY = maxY; velocityY *= -1; }
 
             target.style.left = posX + 'px'; 
@@ -405,13 +422,11 @@
 
             const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
             
-            // Collect Screen Metrics
             const screenWidth = window.innerWidth;
             const screenHeight = window.innerHeight;
             const dpr = window.devicePixelRatio || 1;
             const orientation = screenWidth > screenHeight ? "Landscape" : "Portrait";
             
-            // Add to Data Payload
             sessionData.push([
                 participantId, deviceType, difficultyMode, isColorblind, trialCounter,
                 reactionTime, misses,
@@ -479,6 +494,7 @@
                 uploadStatus.innerText = "Upload Complete! Refresh page for next participant.";
                 uploadStatus.style.color = "#2ecc71"; 
                 if (document.fullscreenElement) document.exitFullscreen();
+                alert("Upload Complete! Data is safely in your Google Sheet.");
             })
             .catch(error => {
                 console.error('Error!', error);
