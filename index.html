@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Block Randomized Edition</title>
+    <title>Catch the Circle - Safe Bouncing Edition</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -150,7 +150,8 @@
     <script>
         // --- BLOCK RANDOMIZATION SETUP ---
         const conditionsList = ['Hue_Only', 'Luminance_Only', 'Hue_And_Luminance', 'Control'];
-        const TRIALS_PER_CONDITION = 4; // 4 conditions x 4 trials = 16 total trials.
+        // Using 16 trials total as previously mapped out for even balance. (4 of each)
+        const TRIALS_PER_CONDITION = 4; 
         const MAX_TRIALS = conditionsList.length * TRIALS_PER_CONDITION; 
         
         let trialPlaylist = [];
@@ -310,7 +311,6 @@
         }
 
         function setupTrialBackground() {
-            // Get the planned condition from our shuffled deck
             const currentCondition = trialPlaylist[trialCounter - 1]; 
             
             const randomFreq = 0.01 + (Math.random() * 0.08); 
@@ -362,7 +362,6 @@
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
             
-            // Build and shuffle the trial playlist
             trialPlaylist = [];
             conditionsList.forEach(cond => {
                 for(let i=0; i<TRIALS_PER_CONDITION; i++) {
@@ -386,19 +385,6 @@
             }, 1000);
         });
 
-        // --- SPAWN LOGIC ---
-        function spawnTarget() {
-            posX = Math.random() * currentMaxX; 
-            posY = currentHeaderHeight + Math.random() * (currentMaxY - currentHeaderHeight);
-            
-            const angle = Math.random() * 2 * Math.PI;
-            velocityX = Math.cos(angle) * currentSpeedPPS; 
-            velocityY = Math.sin(angle) * currentSpeedPPS;
-
-            target.style.left = posX + 'px'; 
-            target.style.top = posY + 'px';
-        }
-
         function startTrial() {
             trialCounter++; document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
             trialScreen.style.display = 'none'; misses = 0; document.getElementById('miss-display').innerText = misses;
@@ -408,15 +394,26 @@
             let targetSize = Math.max(boardHeight * (60 / 600), 45);
             target.style.width = `${targetSize}px`; target.style.height = `${targetSize}px`; 
 
-            // Calculate active game boundaries
             currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
             currentMaxX = boardWidth - targetSize;
             currentMaxY = boardHeight - targetSize;
             currentSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
             
-            spawnTarget();
+            // Safe Spawn Zone Logic: Spawns in the middle 80% of the screen
+            const safeMarginX = currentMaxX * 0.1;
+            const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
+            posX = safeMarginX + Math.random() * (currentMaxX - 2 * safeMarginX); 
+            posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
+            
+            const angle = Math.random() * 2 * Math.PI;
+            velocityX = Math.cos(angle) * currentSpeedPPS; 
+            velocityY = Math.sin(angle) * currentSpeedPPS;
 
-            target.style.display = 'block'; gameActive = true; startTime = Date.now();
+            target.style.left = posX + 'px'; 
+            target.style.top = posY + 'px';
+            target.style.display = 'block'; 
+            
+            gameActive = true; startTime = Date.now();
             
             clearInterval(liveTimerInterval);
             liveTimerInterval = setInterval(() => { document.getElementById('live-time-display').innerText = ((Date.now() - startTime) / 1000).toFixed(2); }, 50);
@@ -431,13 +428,13 @@
 
             posX += velocityX * deltaTime; posY += velocityY * deltaTime;
             
-            // Check for wall collision. If out of bounds, instantly respawn.
-            if (posX <= 0 || posX >= currentMaxX || posY <= currentHeaderHeight || posY >= currentMaxY) { 
-                spawnTarget(); 
-            } else {
-                target.style.left = posX + 'px'; target.style.top = posY + 'px';
-            }
-            
+            // Standard smooth bouncing off boundaries
+            if (posX <= 0) { posX = 0; velocityX *= -1; }
+            if (posX >= currentMaxX) { posX = currentMaxX; velocityX *= -1; }
+            if (posY <= currentHeaderHeight) { posY = currentHeaderHeight; velocityY *= -1; }
+            if (posY >= currentMaxY) { posY = currentMaxY; velocityY *= -1; }
+
+            target.style.left = posX + 'px'; target.style.top = posY + 'px';
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
