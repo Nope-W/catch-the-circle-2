@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Ecological Color Space Edition</title>
+    <title>Catch the Circle - Block Randomized Edition</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -94,7 +94,7 @@
         <h1>Catch the Circle</h1>
         <div id="rotate-hint">📱 Rotate to Landscape</div>
         <div class="stats">
-            <div>Trial: <strong id="trial-counter-display">0 / 10</strong></div>
+            <div>Trial: <strong id="trial-counter-display">0 / 16</strong></div>
             <div>Time: <strong id="live-time-display">0.00</strong> s</div>
             <div>Misses: <strong id="miss-display">0</strong></div>
         </div>
@@ -107,7 +107,7 @@
     <div id="intro-screen" class="overlay-screen">
         <h2>Catch the Circle</h2>
         <div class="instructions-box">
-            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged bouncing circle as fast as you can (10 trials).</p>
+            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged moving circle as fast as you can.</p>
             <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site". Landscape mode is strictly required.</p>
         </div>
         <label class="checkbox-group">
@@ -148,7 +148,12 @@
     </div>
 
     <script>
-        const MAX_TRIALS = 10;
+        // --- BLOCK RANDOMIZATION SETUP ---
+        const conditionsList = ['Hue_Only', 'Luminance_Only', 'Hue_And_Luminance', 'Control'];
+        const TRIALS_PER_CONDITION = 4; // 4 conditions x 4 trials = 16 total trials.
+        const MAX_TRIALS = conditionsList.length * TRIALS_PER_CONDITION; 
+        
+        let trialPlaylist = [];
         
         const board = document.getElementById('game-board');
         const target = document.getElementById('target');
@@ -164,12 +169,26 @@
         
         let startTime = 0, misses = 0, gameActive = false, trialCounter = 0;
         let liveTimerInterval, animationFrameId, lastFrameTime = 0, lastMissTime = 0; 
+        
+        // Physics state
         let posX = 0, posY = 0, velocityX = 0, velocityY = 0;
+        let currentMaxX = 0, currentMaxY = 0, currentHeaderHeight = 0, currentSpeedPPS = 0;
         
         let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
         const speedMultiplier = 10, difficultyMode = "Hard";
         
         let sessionData = []; let currentTrialMetrics = {}; 
+
+        // Fisher-Yates Shuffle Function
+        function shuffleArray(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex !== 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
 
         // --- CIELAB <-> sRGB CONVERSION MATH ---
         function labToRgb(l, a, b) {
@@ -206,16 +225,13 @@
             const width = canvas.width;
             const height = canvas.height;
 
-            // 1. Draw Background
             const paletteSize = Math.floor(Math.random() * 4) + 3; 
             const palette = [];
             for(let i=0; i<paletteSize; i++) {
-                // Apply variance
                 let lRaw = metrics.baseL + (Math.random() * 2 - 1) * metrics.lumContrast;
                 let aRaw = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
-                let bRaw = 50; // Strictly fix B axis to 50 (Yellow-dominant natural light)
+                let bRaw = 50; 
 
-                // ECOLOGICAL CLAMPING: L between 10 and 90, a between -30 and 30
                 let l = Math.max(10, Math.min(90, lRaw));
                 let a = Math.max(-30, Math.min(30, aRaw));
                 let b = bRaw;
@@ -239,7 +255,6 @@
                 ctx.fillRect(x, y, w, h);
             }
 
-            // 2. Extract Empirical Metrics 
             const imgData = ctx.getImageData(0, 0, width, height).data;
             const sampleStep = 8; 
             
@@ -295,26 +310,32 @@
         }
 
         function setupTrialBackground() {
+            // Get the planned condition from our shuffled deck
+            const currentCondition = trialPlaylist[trialCounter - 1]; 
+            
             const randomFreq = 0.01 + (Math.random() * 0.08); 
-            // Random Base A within the bounds to ensure variety across trials
             const randomBaseA = -30 + (Math.random() * 60); 
-            const randomBaseB = 50; // Lock to ecological yellow 
+            const randomBaseB = 50; 
             
-            let lumVariance = 0, colorVariance = 0, conditionType = "";
-            const conditionRoll = Math.random();
+            let lumVariance = 0, colorVariance = 0;
             
-            // Adjust parameters based on condition
-            if (conditionRoll < 0.33) {
-                lumVariance = 0; colorVariance = 15 + (Math.random() * 15); conditionType = "Hue_Only";
-            } else if (conditionRoll < 0.66) {
-                lumVariance = 20 + (Math.random() * 20); colorVariance = 0; conditionType = "Luminance_Only";
-            } else {
-                lumVariance = 20 + (Math.random() * 20); colorVariance = 15 + (Math.random() * 15); conditionType = "Hue_And_Luminance";
+            if (currentCondition === "Hue_Only") {
+                lumVariance = 0; 
+                colorVariance = 15 + (Math.random() * 15); 
+            } else if (currentCondition === "Luminance_Only") {
+                lumVariance = 20 + (Math.random() * 20); 
+                colorVariance = 0; 
+            } else if (currentCondition === "Hue_And_Luminance") {
+                lumVariance = 20 + (Math.random() * 20); 
+                colorVariance = 15 + (Math.random() * 15); 
+            } else if (currentCondition === "Control") {
+                lumVariance = 0; 
+                colorVariance = 0; 
             }
 
             currentTrialMetrics = {
                 spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
-                condition: conditionType, baseL: 50, baseA: randomBaseA, baseB: randomBaseB,
+                condition: currentCondition, baseL: 50, baseA: randomBaseA, baseB: randomBaseB,
                 empSpatial: 0, empLum: 0, empColor: 0
             };
 
@@ -336,9 +357,22 @@
             const enteredId = document.getElementById('participant-id').value.trim();
             if (enteredId === "") { alert("Please enter Participant ID"); return; }
             participantId = enteredId; document.getElementById('participant-id').blur(); 
+            
             if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
+            
+            // Build and shuffle the trial playlist
+            trialPlaylist = [];
+            conditionsList.forEach(cond => {
+                for(let i=0; i<TRIALS_PER_CONDITION; i++) {
+                    trialPlaylist.push(cond);
+                }
+            });
+            trialPlaylist = shuffleArray(trialPlaylist);
+            
+            document.getElementById('trial-counter-display').innerText = `0 / ${MAX_TRIALS}`;
+            
             introScreen.style.display = 'none'; readyScreen.style.display = 'flex';
         });
 
@@ -352,6 +386,19 @@
             }, 1000);
         });
 
+        // --- SPAWN LOGIC ---
+        function spawnTarget() {
+            posX = Math.random() * currentMaxX; 
+            posY = currentHeaderHeight + Math.random() * (currentMaxY - currentHeaderHeight);
+            
+            const angle = Math.random() * 2 * Math.PI;
+            velocityX = Math.cos(angle) * currentSpeedPPS; 
+            velocityY = Math.sin(angle) * currentSpeedPPS;
+
+            target.style.left = posX + 'px'; 
+            target.style.top = posY + 'px';
+        }
+
         function startTrial() {
             trialCounter++; document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
             trialScreen.style.display = 'none'; misses = 0; document.getElementById('miss-display').innerText = misses;
@@ -361,13 +408,13 @@
             let targetSize = Math.max(boardHeight * (60 / 600), 45);
             target.style.width = `${targetSize}px`; target.style.height = `${targetSize}px`; 
 
-            const headerHeight = document.querySelector('.header-container').offsetHeight || 50;
-            posX = Math.random() * (boardWidth - targetSize); 
-            posY = headerHeight + Math.random() * (boardHeight - targetSize - headerHeight);
+            // Calculate active game boundaries
+            currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
+            currentMaxX = boardWidth - targetSize;
+            currentMaxY = boardHeight - targetSize;
+            currentSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
             
-            const actualSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
-            const angle = Math.random() * 2 * Math.PI;
-            velocityX = Math.cos(angle) * actualSpeedPPS; velocityY = Math.sin(angle) * actualSpeedPPS;
+            spawnTarget();
 
             target.style.display = 'block'; gameActive = true; startTime = Date.now();
             
@@ -384,15 +431,13 @@
 
             posX += velocityX * deltaTime; posY += velocityY * deltaTime;
             
-            const headerHeight = document.querySelector('.header-container').offsetHeight || 50;
-            const maxX = board.clientWidth - target.clientWidth, maxY = board.clientHeight - target.clientHeight;
-
-            if (posX <= 0) { posX = 0; velocityX *= -1; }
-            if (posX >= maxX) { posX = maxX; velocityX *= -1; }
-            if (posY <= headerHeight) { posY = headerHeight; velocityY *= -1; }
-            if (posY >= maxY) { posY = maxY; velocityY *= -1; }
-
-            target.style.left = posX + 'px'; target.style.top = posY + 'px';
+            // Check for wall collision. If out of bounds, instantly respawn.
+            if (posX <= 0 || posX >= currentMaxX || posY <= currentHeaderHeight || posY >= currentMaxY) { 
+                spawnTarget(); 
+            } else {
+                target.style.left = posX + 'px'; target.style.top = posY + 'px';
+            }
+            
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
