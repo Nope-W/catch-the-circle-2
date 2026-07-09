@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Precision Edition</title>
+    <title>Catch the Circle - Ecological Color Space Edition</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -18,65 +18,35 @@
             overflow: hidden; 
         }
         
-        /* FULLSCREEN GAME BOARD */
         #game-board { 
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw; 
-            height: 100dvh; 
-            background-color: #222; 
-            background-size: cover; 
-            background-position: center; 
-            background-repeat: no-repeat;
-            overflow: hidden; 
-            cursor: crosshair;
-            touch-action: none; 
-            z-index: 1;
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; 
+            background-color: #222; background-size: cover; background-position: center; 
+            background-repeat: no-repeat; overflow: hidden; cursor: crosshair; touch-action: none; z-index: 1;
         }
 
-        /* OVERLAY HUD HEADER */
         .header-container { 
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%; 
-            background: rgba(0, 0, 0, 0.65);
-            backdrop-filter: blur(4px); 
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 20px; 
-            box-sizing: border-box;
-            z-index: 10;
+            position: fixed; top: 0; left: 0; width: 100%; 
+            background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); 
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 20px; box-sizing: border-box; z-index: 10;
         }
         
         h1 { font-size: 1.2rem; margin: 0; text-align: left; text-transform: uppercase; letter-spacing: 1px;}
         .stats { display: flex; gap: 20px; font-size: 1.1rem; margin: 0; }
         
         #target { 
-            position: absolute; 
-            display: none; 
-            border-radius: 50%; 
-            box-shadow: 0 0 6px rgba(0,0,0,0.5);
-            z-index: 5;
-            /* Disable pointer events so clicks pass through to the game-board for math detection */
-            pointer-events: none; 
+            position: absolute; display: none; border-radius: 50%; 
+            box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 5; pointer-events: none; 
         }
 
-        /* HARD PORTRAIT LOCK OVERLAY */
         #portrait-lock {
-            display: none;
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background-color: #c0392b; color: white; z-index: 10000;
             flex-direction: column; justify-content: center; align-items: center;
             font-size: 1.5rem; font-weight: bold; padding: 20px; text-align: center;
         }
-        @media (orientation: portrait) {
-            #portrait-lock { display: flex; }
-        }
+        @media (orientation: portrait) { #portrait-lock { display: flex; } }
         
-        /* OVERLAY SCREENS */
         .overlay-screen { 
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
             background-color: rgba(0, 0, 0, 0.95); z-index: 100; 
@@ -196,17 +166,12 @@
         let liveTimerInterval, animationFrameId, lastFrameTime = 0, lastMissTime = 0; 
         let posX = 0, posY = 0, velocityX = 0, velocityY = 0;
         
-        let participantId = "Unknown";
-        let isColorblind = "No";
-        let deviceType = "Laptop/Desktop";
-        
-        // Speed and Difficulty are locked.
-        const speedMultiplier = 10; 
-        const difficultyMode = "Hard";
+        let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
+        const speedMultiplier = 10, difficultyMode = "Hard";
         
         let sessionData = []; let currentTrialMetrics = {}; 
 
-        // --- CIELAB to sRGB Conversion ---
+        // --- CIELAB <-> sRGB CONVERSION MATH ---
         function labToRgb(l, a, b) {
             let y = (l + 16) / 116, x = a / 500 + y, z = y - b / 200, r, g, b_out;
             x = 0.95047 * ((x * x * x > 0.008856) ? x * x * x : (x - 16/116) / 7.787);
@@ -221,19 +186,40 @@
             return [Math.max(0, Math.min(1, r)) * 255, Math.max(0, Math.min(1, g)) * 255, Math.max(0, Math.min(1, b_out)) * 255];
         }
 
-        // --- Digital Block Camouflage Generator ---
+        function rgbToLab(r, g, b) {
+            let r_n = r / 255, g_n = g / 255, b_n = b / 255;
+            r_n = (r_n > 0.04045) ? Math.pow((r_n + 0.055) / 1.055, 2.4) : r_n / 12.92;
+            g_n = (g_n > 0.04045) ? Math.pow((g_n + 0.055) / 1.055, 2.4) : g_n / 12.92;
+            b_n = (b_n > 0.04045) ? Math.pow((b_n + 0.055) / 1.055, 2.4) : b_n / 12.92;
+            let x = (r_n * 0.4124 + g_n * 0.3576 + b_n * 0.1805) / 0.95047;
+            let y = (r_n * 0.2126 + g_n * 0.7152 + b_n * 0.0722) / 1.00000;
+            let z = (r_n * 0.0193 + g_n * 0.1192 + b_n * 0.9505) / 1.08883;
+            x = (x > 0.008856) ? Math.pow(x, 1/3) : (7.787 * x) + 16/116;
+            y = (y > 0.008856) ? Math.pow(y, 1/3) : (7.787 * y) + 16/116;
+            z = (z > 0.008856) ? Math.pow(z, 1/3) : (7.787 * z) + 16/116;
+            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+        }
+
+        // --- BACKGROUND GENERATOR WITH ECOLOGICAL CONSTRAINTS ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
             const height = canvas.height;
 
+            // 1. Draw Background
             const paletteSize = Math.floor(Math.random() * 4) + 3; 
             const palette = [];
-            
             for(let i=0; i<paletteSize; i++) {
-                const l = metrics.baseL + (Math.random() * 2 - 1) * metrics.lumContrast;
-                const a = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
-                const b = metrics.baseB + (Math.random() * 2 - 1) * metrics.colorClutter;
+                // Apply variance
+                let lRaw = metrics.baseL + (Math.random() * 2 - 1) * metrics.lumContrast;
+                let aRaw = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
+                let bRaw = 50; // Strictly fix B axis to 50 (Yellow-dominant natural light)
+
+                // ECOLOGICAL CLAMPING: L between 10 and 90, a between -30 and 30
+                let l = Math.max(10, Math.min(90, lRaw));
+                let a = Math.max(-30, Math.min(30, aRaw));
+                let b = bRaw;
+
                 palette.push(labToRgb(l, a, b));
             }
 
@@ -248,92 +234,112 @@
                 const h = Math.random() * maxRectSize + 10;
                 const x = Math.random() * (width + w) - w;
                 const y = Math.random() * (height + h) - h;
-
                 const color = palette[Math.floor(Math.random() * palette.length)];
                 ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
                 ctx.fillRect(x, y, w, h);
             }
 
+            // 2. Extract Empirical Metrics 
             const imgData = ctx.getImageData(0, 0, width, height).data;
-            let sumR = 0, sumG = 0, sumB = 0;
-            const pixels = width * height;
+            const sampleStep = 8; 
             
-            for (let i = 0; i < imgData.length; i += 16) {
-                sumR += imgData[i];
-                sumG += imgData[i+1];
-                sumB += imgData[i+2];
+            let sumR = 0, sumG = 0, sumB = 0;
+            let lValues = [], aValues = [], bValues = [], edgeMagnitudes = [];
+            
+            for (let y = 0; y < height - sampleStep; y += sampleStep) {
+                for (let x = 0; x < width - sampleStep; x += sampleStep) {
+                    const idx = (y * width + x) * 4;
+                    const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2];
+                    
+                    sumR += r; sumG += g; sumB += b;
+                    
+                    const lab = rgbToLab(r, g, b);
+                    lValues.push(lab[0]);
+                    aValues.push(lab[1]);
+                    bValues.push(lab[2]);
+
+                    const rightIdx = (y * width + (x + sampleStep)) * 4;
+                    const bottomIdx = ((y + sampleStep) * width + x) * 4;
+                    
+                    const currentLum = 0.299 * r + 0.587 * g + 0.114 * b;
+                    const rightLum = 0.299 * imgData[rightIdx] + 0.587 * imgData[rightIdx+1] + 0.114 * imgData[rightIdx+2];
+                    const bottomLum = 0.299 * imgData[bottomIdx] + 0.587 * imgData[bottomIdx+1] + 0.114 * imgData[bottomIdx+2];
+                    
+                    edgeMagnitudes.push(Math.abs(currentLum - rightLum) + Math.abs(currentLum - bottomLum));
+                }
             }
-            const sampleSize = pixels / 4;
-            return [Math.round(sumR/sampleSize), Math.round(sumG/sampleSize), Math.round(sumB/sampleSize)];
+            
+            const sampleSize = lValues.length;
+
+            const meanL = lValues.reduce((a, b) => a + b, 0) / sampleSize;
+            const meanA = aValues.reduce((a, b) => a + b, 0) / sampleSize;
+            const meanB = bValues.reduce((a, b) => a + b, 0) / sampleSize;
+            const meanEdge = edgeMagnitudes.reduce((a, b) => a + b, 0) / sampleSize;
+
+            let varL = 0, varA = 0, varB = 0;
+            for(let i=0; i<sampleSize; i++) {
+                varL += Math.pow(lValues[i] - meanL, 2);
+                varA += Math.pow(aValues[i] - meanA, 2);
+                varB += Math.pow(bValues[i] - meanB, 2);
+            }
+            
+            const empiricalLumSD = Math.sqrt(varL / sampleSize);
+            const empiricalColorSD = Math.sqrt((varA + varB) / sampleSize); 
+
+            return {
+                preyColor: [Math.round(sumR/sampleSize), Math.round(sumG/sampleSize), Math.round(sumB/sampleSize)],
+                empiricalLumSD: empiricalLumSD,
+                empiricalColorSD: empiricalColorSD,
+                empiricalSpatialFreq: meanEdge 
+            };
         }
 
-        // --- Structured Camouflage Trials ---
         function setupTrialBackground() {
             const randomFreq = 0.01 + (Math.random() * 0.08); 
-            const randomBaseA = -25 + (Math.random() * 35);
-            const randomBaseB = 10 + (Math.random() * 30);
+            // Random Base A within the bounds to ensure variety across trials
+            const randomBaseA = -30 + (Math.random() * 60); 
+            const randomBaseB = 50; // Lock to ecological yellow 
             
-            let lumVariance = 0;
-            let colorVariance = 0;
-            let conditionType = "";
-
+            let lumVariance = 0, colorVariance = 0, conditionType = "";
             const conditionRoll = Math.random();
             
+            // Adjust parameters based on condition
             if (conditionRoll < 0.33) {
-                lumVariance = 0; 
-                colorVariance = 25 + (Math.random() * 20);
-                conditionType = "Hue_Only";
+                lumVariance = 0; colorVariance = 15 + (Math.random() * 15); conditionType = "Hue_Only";
             } else if (conditionRoll < 0.66) {
-                lumVariance = 25 + (Math.random() * 25);
-                colorVariance = 0;
-                conditionType = "Luminance_Only";
+                lumVariance = 20 + (Math.random() * 20); colorVariance = 0; conditionType = "Luminance_Only";
             } else {
-                lumVariance = 25 + (Math.random() * 25);
-                colorVariance = 25 + (Math.random() * 20);
-                conditionType = "Hue_And_Luminance";
+                lumVariance = 20 + (Math.random() * 20); colorVariance = 15 + (Math.random() * 15); conditionType = "Hue_And_Luminance";
             }
 
             currentTrialMetrics = {
-                spatialFreq: randomFreq,
-                lumContrast: lumVariance,
-                colorClutter: colorVariance,
-                condition: conditionType, 
-                baseL: 50, 
-                baseA: randomBaseA, 
-                baseB: randomBaseB 
+                spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
+                condition: conditionType, baseL: 50, baseA: randomBaseA, baseB: randomBaseB,
+                empSpatial: 0, empLum: 0, empColor: 0
             };
 
             const bgCanvas = document.createElement('canvas');
-            // Background is now completely full screen
-            bgCanvas.width = board.clientWidth;
-            bgCanvas.height = board.clientHeight;
+            bgCanvas.width = board.clientWidth; bgCanvas.height = board.clientHeight;
             
-            const preyRGB = generateBackground(bgCanvas, currentTrialMetrics);
+            const bgData = generateBackground(bgCanvas, currentTrialMetrics);
+            
+            currentTrialMetrics.empSpatial = bgData.empiricalSpatialFreq;
+            currentTrialMetrics.empLum = bgData.empiricalLumSD;
+            currentTrialMetrics.empColor = bgData.empiricalColorSD;
             
             board.style.backgroundImage = `url(${bgCanvas.toDataURL()})`;
-            target.style.backgroundColor = `rgb(${preyRGB[0]}, ${preyRGB[1]}, ${preyRGB[2]})`;
+            target.style.backgroundColor = `rgb(${bgData.preyColor[0]}, ${bgData.preyColor[1]}, ${bgData.preyColor[2]})`;
         }
 
         startSessionBtn.addEventListener('click', () => {
-            if (window.innerHeight > window.innerWidth) {
-                alert("Please rotate your device to landscape before starting.");
-                return;
-            }
-
+            if (window.innerHeight > window.innerWidth) { alert("Please rotate your device to landscape before starting."); return; }
             const enteredId = document.getElementById('participant-id').value.trim();
             if (enteredId === "") { alert("Please enter Participant ID"); return; }
-            participantId = enteredId;
-            document.getElementById('participant-id').blur(); 
-            
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
-            }
-            
+            participantId = enteredId; document.getElementById('participant-id').blur(); 
+            if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
-            
-            introScreen.style.display = 'none';
-            readyScreen.style.display = 'flex';
+            introScreen.style.display = 'none'; readyScreen.style.display = 'flex';
         });
 
         beginFirstTrialBtn.addEventListener('click', () => {
@@ -347,187 +353,105 @@
         });
 
         function startTrial() {
-            trialCounter++;
-            document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
-            trialScreen.style.display = 'none';
-            misses = 0; document.getElementById('miss-display').innerText = misses;
-
+            trialCounter++; document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
+            trialScreen.style.display = 'none'; misses = 0; document.getElementById('miss-display').innerText = misses;
             setupTrialBackground();
             
-            const boardWidth = board.clientWidth;
-            const boardHeight = board.clientHeight;
-            
-            let targetSize = boardHeight * (60 / 600);
-            if (targetSize < 45) targetSize = 45;
-            target.style.width = `${targetSize}px`;
-            target.style.height = `${targetSize}px`; 
+            const boardWidth = board.clientWidth, boardHeight = board.clientHeight;
+            let targetSize = Math.max(boardHeight * (60 / 600), 45);
+            target.style.width = `${targetSize}px`; target.style.height = `${targetSize}px`; 
 
-            // Prevent target from spawning underneath the HUD header
             const headerHeight = document.querySelector('.header-container').offsetHeight || 50;
-            const maxX = boardWidth - targetSize;
-            const maxY = boardHeight - targetSize;
+            posX = Math.random() * (boardWidth - targetSize); 
+            posY = headerHeight + Math.random() * (boardHeight - targetSize - headerHeight);
             
-            posX = Math.random() * maxX; 
-            posY = headerHeight + Math.random() * (maxY - headerHeight);
-            
-            const scaleFactor = boardWidth / 800; 
-            const actualSpeedPPS = (speedMultiplier * 60) * scaleFactor;
+            const actualSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
             const angle = Math.random() * 2 * Math.PI;
-            velocityX = Math.cos(angle) * actualSpeedPPS;
-            velocityY = Math.sin(angle) * actualSpeedPPS;
+            velocityX = Math.cos(angle) * actualSpeedPPS; velocityY = Math.sin(angle) * actualSpeedPPS;
 
-            target.style.display = 'block';
-            gameActive = true;
-            startTime = Date.now();
+            target.style.display = 'block'; gameActive = true; startTime = Date.now();
             
             clearInterval(liveTimerInterval);
-            liveTimerInterval = setInterval(() => {
-                document.getElementById('live-time-display').innerText = ((Date.now() - startTime) / 1000).toFixed(2);
-            }, 50);
+            liveTimerInterval = setInterval(() => { document.getElementById('live-time-display').innerText = ((Date.now() - startTime) / 1000).toFixed(2); }, 50);
 
-            lastFrameTime = performance.now();
-            animationFrameId = requestAnimationFrame(animateTarget);
+            lastFrameTime = performance.now(); animationFrameId = requestAnimationFrame(animateTarget);
         }
 
         function animateTarget(currentTime) {
             if (!gameActive) return;
-            let deltaTime = (currentTime - lastFrameTime) / 1000;
+            let deltaTime = Math.min((currentTime - lastFrameTime) / 1000, 0.1);
             lastFrameTime = currentTime;
-            if (deltaTime > 0.1) deltaTime = 0.1; 
 
-            posX += velocityX * deltaTime; 
-            posY += velocityY * deltaTime;
+            posX += velocityX * deltaTime; posY += velocityY * deltaTime;
             
             const headerHeight = document.querySelector('.header-container').offsetHeight || 50;
-            const maxX = board.clientWidth - target.clientWidth;
-            const maxY = board.clientHeight - target.clientHeight;
+            const maxX = board.clientWidth - target.clientWidth, maxY = board.clientHeight - target.clientHeight;
 
-            // Bouncing logic (confined below the HUD overlay)
             if (posX <= 0) { posX = 0; velocityX *= -1; }
             if (posX >= maxX) { posX = maxX; velocityX *= -1; }
             if (posY <= headerHeight) { posY = headerHeight; velocityY *= -1; }
             if (posY >= maxY) { posY = maxY; velocityY *= -1; }
 
-            target.style.left = posX + 'px'; 
-            target.style.top = posY + 'px';
+            target.style.left = posX + 'px'; target.style.top = posY + 'px';
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
-        // --- MATH-BASED HIT DETECTION ---
         function handleInteraction(event) {
             if (!gameActive) return;
             if (event.cancelable) event.preventDefault(); 
-            if (Date.now() - lastMissTime < 100) return; // Debounce multi-clicks
+            if (Date.now() - lastMissTime < 100) return; 
             
-            // 1. Get exact X/Y coordinates relative to the game board
             let clientX, clientY;
             if (event.type === 'touchstart' || event.type === 'touchmove') {
-                clientX = event.changedTouches[0].clientX;
-                clientY = event.changedTouches[0].clientY;
-            } else {
-                clientX = event.clientX;
-                clientY = event.clientY;
-            }
+                clientX = event.changedTouches[0].clientX; clientY = event.changedTouches[0].clientY;
+            } else { clientX = event.clientX; clientY = event.clientY; }
 
             const boardRect = board.getBoundingClientRect();
-            const clickX = clientX - boardRect.left;
-            const clickY = clientY - boardRect.top;
-
-            // 2. Calculate target center point
-            const targetRadius = target.clientWidth / 2;
-            const targetCenterX = posX + targetRadius;
-            const targetCenterY = posY + targetRadius;
-
-            // 3. Pythagorean theorem to find distance
-            const dx = clickX - targetCenterX;
-            const dy = clickY - targetCenterY;
-            const distance = Math.sqrt((dx * dx) + (dy * dy));
-
-            // 4. Hit Detection with a 15px "forgiveness" margin
-            const forgivenessMargin = 15; 
-
-            if (distance <= (targetRadius + forgivenessMargin)) {
-                // --- TARGET CAUGHT ---
-                gameActive = false;
-                cancelAnimationFrame(animationFrameId);
-                clearInterval(liveTimerInterval);
-
+            const dx = (clientX - boardRect.left) - (posX + target.clientWidth / 2);
+            const dy = (clientY - boardRect.top) - (posY + target.clientWidth / 2);
+            
+            if (Math.sqrt(dx * dx + dy * dy) <= (target.clientWidth / 2 + 15)) {
+                gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(liveTimerInterval);
                 const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
-                
-                const screenWidth = window.innerWidth;
-                const screenHeight = window.innerHeight;
-                const dpr = window.devicePixelRatio || 1;
-                const orientation = screenWidth > screenHeight ? "Landscape" : "Portrait";
+                const sw = window.innerWidth, sh = window.innerHeight;
                 
                 sessionData.push([
-                    participantId, deviceType, difficultyMode, isColorblind, trialCounter,
-                    reactionTime, misses,
-                    currentTrialMetrics.spatialFreq.toFixed(4),
-                    currentTrialMetrics.lumContrast.toFixed(2),
-                    currentTrialMetrics.colorClutter.toFixed(2),
-                    currentTrialMetrics.condition,
-                    screenWidth,
-                    screenHeight,
-                    dpr,
-                    orientation
+                    participantId, deviceType, difficultyMode, isColorblind, trialCounter, reactionTime, misses,
+                    currentTrialMetrics.spatialFreq.toFixed(4), currentTrialMetrics.empSpatial.toFixed(2),
+                    currentTrialMetrics.lumContrast.toFixed(2), currentTrialMetrics.empLum.toFixed(2),
+                    currentTrialMetrics.colorClutter.toFixed(2), currentTrialMetrics.empColor.toFixed(2),
+                    currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
                 ]);
                 
                 target.style.display = 'none'; 
-                
-                if (trialCounter >= MAX_TRIALS) {
-                    endScreen.style.display = 'flex';
-                } else {
-                    document.getElementById('trial-time').innerText = reactionTime;
-                    trialScreen.style.display = 'flex'; 
-                    nextTrialBtn.disabled = true;
-                    let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                    
+                if (trialCounter >= MAX_TRIALS) endScreen.style.display = 'flex';
+                else {
+                    document.getElementById('trial-time').innerText = reactionTime; trialScreen.style.display = 'flex'; 
+                    nextTrialBtn.disabled = true; let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
                     const cdTimer = setInterval(() => {
                         cd--;
                         if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                        else {
-                            clearInterval(cdTimer); nextTrialBtn.disabled = false;
-                            nextTrialBtn.innerText = "Start Next Trial";
-                        }
+                        else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
                     }, 1000);
                 }
             } else {
-                // --- MISS ---
-                lastMissTime = Date.now();
-                misses++;
-                document.getElementById('miss-display').innerText = misses;
+                lastMissTime = Date.now(); misses++; document.getElementById('miss-display').innerText = misses;
             }
         }
 
-        // Single, unified interaction listener on the board
         board.addEventListener('mousedown', handleInteraction);
         board.addEventListener('touchstart', handleInteraction, {passive: false});
         nextTrialBtn.addEventListener('click', startTrial);
 
         finishSessionBtn.addEventListener('click', () => {
-            finishSessionBtn.disabled = true;
-            uploadStatus.style.display = 'block';
-            uploadStatus.innerText = "Uploading data to Google Sheets...";
-            uploadStatus.style.color = "#f1c40f"; 
-            
-            const googleScriptURL = "https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec"; 
-
-            fetch(googleScriptURL, {
-                method: 'POST',
-                mode: 'no-cors',
-                body: JSON.stringify(sessionData),
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            })
-            .then(() => {
-                uploadStatus.innerText = "Upload Complete! Refresh page for next participant.";
-                uploadStatus.style.color = "#2ecc71"; 
+            finishSessionBtn.disabled = true; uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
+            fetch("https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec", {
+                method: 'POST', mode: 'no-cors', body: JSON.stringify(sessionData), headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            }).then(() => {
+                uploadStatus.innerText = "Upload Complete!"; uploadStatus.style.color = "#2ecc71"; 
                 if (document.fullscreenElement) document.exitFullscreen();
-            })
-            .catch(error => {
-                console.error('Error!', error);
-                uploadStatus.innerText = "Error uploading data. Check your internet/URL.";
-                uploadStatus.style.color = "#e74c3c"; 
-                finishSessionBtn.disabled = false;
+            }).catch(e => {
+                uploadStatus.innerText = "Error uploading data."; uploadStatus.style.color = "#e74c3c"; finishSessionBtn.disabled = false;
             });
         });
     </script>
