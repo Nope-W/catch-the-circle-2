@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle</title>
+    <title>Catch the Circle - Bouncing</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -18,23 +18,15 @@
             overflow: hidden; 
         }
         
-        /* ISOTROPIC SQUARE GAME BOARD */
         #game-board { 
-            position: fixed; 
-            top: 54%; 
-            left: 50%; 
-            transform: translate(-50%, -50%);
-            width: 82dvh; 
-            height: 82dvh; 
-            aspect-ratio: 1 / 1; 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; 
             background-color: #222; background-size: cover; background-position: center; 
             background-repeat: no-repeat; overflow: hidden; cursor: crosshair; touch-action: none; z-index: 1;
-            border: 3px solid #fff; border-radius: 8px;
         }
 
         .header-container { 
             position: fixed; top: 0; left: 0; width: 100%; 
-            background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(4px); 
+            background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); 
             display: flex; justify-content: space-between; align-items: center;
             padding: 10px 20px; box-sizing: border-box; z-index: 10;
         }
@@ -44,7 +36,7 @@
         
         #target { 
             position: absolute; display: none; border-radius: 50%; 
-            box-shadow: 0 0 8px rgba(0,0,0,0.8); z-index: 5; pointer-events: none; 
+            box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 5; pointer-events: none; 
         }
 
         #portrait-lock {
@@ -70,6 +62,7 @@
             padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.3; font-size: 1rem;
         }
         .instructions-box p { margin: 5px 0; } 
+        .warning-text { color: #f39c12; font-weight: bold; }
         
         .form-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; width: 100%; max-width: 700px; flex-wrap: wrap;}
         .control-group { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 160px;}
@@ -83,6 +76,7 @@
         button:hover { background-color: #45a049; }
         button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
         .danger-btn { background-color: #3498db; }
+        .danger-btn:hover { background-color: #2980b9; }
         
         #upload-status { margin-top: 15px; font-weight: bold; color: #f1c40f; display: none; }
         #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
@@ -116,17 +110,14 @@
             <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged moving circle as fast as you can.</p>
             <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site". Landscape mode is strictly required.</p>
         </div>
-        
         <label class="checkbox-group">
             <input type="checkbox" id="colorblind-check"> I have a color vision deficiency
         </label>
-        
         <div class="form-row">
             <div class="control-group">
                 <label>Participant ID</label>
                 <input type="text" id="participant-id" placeholder="e.g., P-001" autocomplete="off">
             </div>
-            
             <div class="control-group">
                 <label>Device Type</label>
                 <select id="device-select">
@@ -135,7 +126,7 @@
                     <option value="Smartphone">Smartphone</option>
                 </select>
             </div>
-            
+            <!-- Added Repeat Player Dropdown -->
             <div class="control-group">
                 <label>Have you played before?</label>
                 <select id="repeat-select">
@@ -165,10 +156,13 @@
     </div>
 
     <script>
-        // --- EXPERIMENT DESIGN ---
+        // --- BLOCK RANDOMIZATION SETUP ---
         const conditionsList = ['Hue_Only', 'Luminance_Only', 'Hue_And_Luminance', 'Control'];
-        const TRIALS_PER_CONDITION = 4; // 16 Trials total
+        // Using 16 trials total as previously mapped out for even balance. (4 of each)
+        const TRIALS_PER_CONDITION = 4; 
         const MAX_TRIALS = conditionsList.length * TRIALS_PER_CONDITION; 
+        
+        let trialPlaylist = [];
         
         const board = document.getElementById('game-board');
         const target = document.getElementById('target');
@@ -180,13 +174,16 @@
         const beginFirstTrialBtn = document.getElementById('begin-first-trial-btn');
         const nextTrialBtn = document.getElementById('next-trial-btn');
         const finishSessionBtn = document.getElementById('finish-session-btn');
+        const uploadStatus = document.getElementById('upload-status');
         
-        let trialPlaylist = [];
         let startTime = 0, misses = 0, gameActive = false, trialCounter = 0;
         let liveTimerInterval, animationFrameId, lastFrameTime = 0, lastMissTime = 0; 
-        let posX = 0, posY = 0, velocityX = 0, velocityY = 0;
         
-        // Metadata Tracking
+        // Physics state
+        let posX = 0, posY = 0, velocityX = 0, velocityY = 0;
+        let currentMaxX = 0, currentMaxY = 0, currentHeaderHeight = 0, currentSpeedPPS = 0;
+        
+        // Tracking Variables (Updated to include repeat tracking)
         let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
         let selfReportedRepeat = "No", systemDetectedRepeat = "No";
         const speedMultiplier = 10, difficultyMode = "Hard";
@@ -233,7 +230,7 @@
             return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
-        // --- BACKGROUND GENERATOR & EMPIRICAL EXTRACTION ---
+        // --- BACKGROUND GENERATOR WITH ECOLOGICAL CONSTRAINTS ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
@@ -246,7 +243,6 @@
                 let aRaw = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
                 let bRaw = 50; 
 
-                // ECOLOGICAL CLAMPING
                 let l = Math.max(10, Math.min(90, lRaw));
                 let a = Math.max(-30, Math.min(30, aRaw));
                 let b = bRaw;
@@ -270,7 +266,6 @@
                 ctx.fillRect(x, y, w, h);
             }
 
-            // Extract Empirical Metrics
             const imgData = ctx.getImageData(0, 0, width, height).data;
             const sampleStep = 8; 
             
@@ -301,6 +296,7 @@
             }
             
             const sampleSize = lValues.length;
+
             const meanL = lValues.reduce((a, b) => a + b, 0) / sampleSize;
             const meanA = aValues.reduce((a, b) => a + b, 0) / sampleSize;
             const meanB = bValues.reduce((a, b) => a + b, 0) / sampleSize;
@@ -363,19 +359,11 @@
             currentTrialMetrics.empColor = bgData.empiricalColorSD;
             
             board.style.backgroundImage = `url(${bgCanvas.toDataURL()})`;
-            
-            // To ensure the Control target is visible (baseline motor test), invert its color entirely
-            if (currentCondition === "Control") {
-                target.style.backgroundColor = `rgb(${255-bgData.preyColor[0]}, ${255-bgData.preyColor[1]}, ${255-bgData.preyColor[2]})`;
-            } else {
-                target.style.backgroundColor = `rgb(${bgData.preyColor[0]}, ${bgData.preyColor[1]}, ${bgData.preyColor[2]})`;
-            }
+            target.style.backgroundColor = `rgb(${bgData.preyColor[0]}, ${bgData.preyColor[1]}, ${bgData.preyColor[2]})`;
         }
 
-        // --- UI & GAME FLOW ---
         startSessionBtn.addEventListener('click', () => {
             if (window.innerHeight > window.innerWidth) { alert("Please rotate your device to landscape before starting."); return; }
-            
             const enteredId = document.getElementById('participant-id').value.trim();
             if (enteredId === "") { alert("Please enter Participant ID"); return; }
             participantId = enteredId; document.getElementById('participant-id').blur(); 
@@ -384,12 +372,11 @@
             
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
+            
+            // Capture Repeat Player Info
             selfReportedRepeat = document.getElementById('repeat-select').value;
-
-            // Browser Memory Tracking for Repeat Players
             systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No";
             
-            // Build and shuffle block randomized playlist
             trialPlaylist = [];
             conditionsList.forEach(cond => {
                 for(let i=0; i<TRIALS_PER_CONDITION; i++) {
@@ -399,6 +386,7 @@
             trialPlaylist = shuffleArray(trialPlaylist);
             
             document.getElementById('trial-counter-display').innerText = `0 / ${MAX_TRIALS}`;
+            
             introScreen.style.display = 'none'; readyScreen.style.display = 'flex';
         });
 
@@ -417,20 +405,24 @@
             trialScreen.style.display = 'none'; misses = 0; document.getElementById('miss-display').innerText = misses;
             setupTrialBackground();
             
-            const boardSize = board.clientWidth; // Square board
-            let targetSize = Math.max(boardSize * (60 / 600), 45);
+            const boardWidth = board.clientWidth, boardHeight = board.clientHeight;
+            let targetSize = Math.max(boardHeight * (60 / 600), 45);
             target.style.width = `${targetSize}px`; target.style.height = `${targetSize}px`; 
 
-            const speedPPS = (speedMultiplier * 60) * (boardSize / 800);
+            currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
+            currentMaxX = boardWidth - targetSize;
+            currentMaxY = boardHeight - targetSize;
+            currentSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
             
-            // Safe Spawn Zone: Spawns in the middle 80% of the square
-            const safeMargin = boardSize * 0.1;
-            posX = safeMargin + Math.random() * (boardSize - targetSize - 2 * safeMargin); 
-            posY = safeMargin + Math.random() * (boardSize - targetSize - 2 * safeMargin);
+            // Safe Spawn Zone Logic: Spawns in the middle 80% of the screen
+            const safeMarginX = currentMaxX * 0.1;
+            const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
+            posX = safeMarginX + Math.random() * (currentMaxX - 2 * safeMarginX); 
+            posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             
             const angle = Math.random() * 2 * Math.PI;
-            velocityX = Math.cos(angle) * speedPPS; 
-            velocityY = Math.sin(angle) * speedPPS;
+            velocityX = Math.cos(angle) * currentSpeedPPS; 
+            velocityY = Math.sin(angle) * currentSpeedPPS;
 
             target.style.left = posX + 'px'; 
             target.style.top = posY + 'px';
@@ -451,12 +443,11 @@
 
             posX += velocityX * deltaTime; posY += velocityY * deltaTime;
             
-            // Square Bouncing Logic (Board is container)
-            const maxBounds = board.clientWidth - target.clientWidth;
+            // Standard smooth bouncing off boundaries
             if (posX <= 0) { posX = 0; velocityX *= -1; }
-            if (posX >= maxBounds) { posX = maxBounds; velocityX *= -1; }
-            if (posY <= 0) { posY = 0; velocityY *= -1; }
-            if (posY >= maxBounds) { posY = maxBounds; velocityY *= -1; }
+            if (posX >= currentMaxX) { posX = currentMaxX; velocityX *= -1; }
+            if (posY <= currentHeaderHeight) { posY = currentHeaderHeight; velocityY *= -1; }
+            if (posY >= currentMaxY) { posY = currentMaxY; velocityY *= -1; }
 
             target.style.left = posX + 'px'; target.style.top = posY + 'px';
             animationFrameId = requestAnimationFrame(animateTarget);
@@ -473,30 +464,21 @@
             } else { clientX = event.clientX; clientY = event.clientY; }
 
             const boardRect = board.getBoundingClientRect();
-            const clickX = clientX - boardRect.left;
-            const clickY = clientY - boardRect.top;
-
-            const targetRadius = target.clientWidth / 2;
-            const targetCenterX = posX + targetRadius;
-            const targetCenterY = posY + targetRadius;
-
-            const dx = clickX - targetCenterX;
-            const dy = clickY - targetCenterY;
+            const dx = (clientX - boardRect.left) - (posX + target.clientWidth / 2);
+            const dy = (clientY - boardRect.top) - (posY + target.clientWidth / 2);
             
-            if (Math.sqrt(dx * dx + dy * dy) <= (targetRadius + 15)) {
+            if (Math.sqrt(dx * dx + dy * dy) <= (target.clientWidth / 2 + 15)) {
                 gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(liveTimerInterval);
                 const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
                 const sw = window.innerWidth, sh = window.innerHeight;
-                const dpr = window.devicePixelRatio || 1;
-                const orientation = sw > sh ? "Landscape" : "Portrait";
                 
-                // 20-Column Data Payload
+                // Added selfReportedRepeat and systemDetectedRepeat into the array payload
                 sessionData.push([
                     participantId, deviceType, difficultyMode, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, misses,
                     currentTrialMetrics.spatialFreq.toFixed(4), currentTrialMetrics.empSpatial.toFixed(2),
                     currentTrialMetrics.lumContrast.toFixed(2), currentTrialMetrics.empLum.toFixed(2),
                     currentTrialMetrics.colorClutter.toFixed(2), currentTrialMetrics.empColor.toFixed(2),
-                    currentTrialMetrics.condition, sw, sh, dpr, orientation
+                    currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
                 ]);
                 
                 target.style.display = 'none'; 
@@ -522,12 +504,10 @@
         finishSessionBtn.addEventListener('click', () => {
             finishSessionBtn.disabled = true; 
             
-            // Tag browser so system knows they played
+            // Tag the browser memory so we know they played
             localStorage.setItem('hasPlayedCatchTheCircle', 'true');
             
-            const uploadStatus = document.getElementById('upload-status');
             uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
-            
             fetch("https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec", {
                 method: 'POST', mode: 'no-cors', body: JSON.stringify(sessionData), headers: { 'Content-Type': 'text/plain;charset=utf-8' }
             }).then(() => {
