@@ -228,7 +228,7 @@
             return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
-        // --- BACKGROUND GENERATOR WITH CONTINUOUS VARIANCE ---
+        // --- BACKGROUND GENERATOR WITH MAXIMIZED BIMODAL VARIANCE ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
@@ -237,15 +237,15 @@
             const paletteSize = 4;
             const palette = [];
 
-            // Helper to generate 4 values spaced by the dynamic, continuous step size
-            function getSpacedValues(minBound, maxBound, step) {
-                const requiredSpan = step * 3; 
-                const start = minBound + Math.random() * (maxBound - minBound - requiredSpan);
+            // This helper stretches 4 colors across the entire specified boundaries
+            // This guarantees the absolute maximum possible Standard Deviation for the condition
+            function getMaxSpacedValues(minBound, maxBound) {
+                const step = (maxBound - minBound) / 3; 
                 return [
-                    start, 
-                    start + step,       
-                    start + (step * 2), 
-                    start + (step * 3)  
+                    minBound, 
+                    minBound + step, 
+                    minBound + (step * 2), 
+                    maxBound
                 ];
             }
 
@@ -256,17 +256,17 @@
                 lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
                 aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
             } else if (metrics.condition === 'Luminance_Only') {
-                // Luminance varies smoothly; Hue remains flat within safe gamut
-                lValues = getSpacedValues(20, 85, metrics.lumStep); 
+                // Stretches Lightness from 15 to 85 (Span of 70). Theoretical SD is ~26.
+                lValues = getMaxSpacedValues(15, 85); 
                 aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
             } else if (metrics.condition === 'Hue_Only') {
-                // Hue varies smoothly; Luminance remains flat within safe gamut
+                // Stretches Hue from -40 to +40 (Span of 80). Theoretical SD is ~30.
                 lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
-                aValues = getSpacedValues(-25, 35, metrics.colorStep); 
+                aValues = getMaxSpacedValues(-40, 40); 
             } else if (metrics.condition === 'Hue_And_Luminance') {
-                // Both vary on independent continuous gradients
-                lValues = getSpacedValues(20, 85, metrics.lumStep);
-                aValues = getSpacedValues(-25, 35, metrics.colorStep);
+                // Maximizes both simultaneously
+                lValues = getMaxSpacedValues(15, 85);
+                aValues = getMaxSpacedValues(-40, 40);
                 
                 // Shuffle the hue array so Hue and Luminance don't predictably step up together
                 for (let i = aValues.length - 1; i > 0; i--) {
@@ -357,28 +357,21 @@
             const randomBaseA = -30 + (Math.random() * 60); 
             const randomBaseB = 0; // Neutral B-axis prevents gamut clipping
             
-            // Generate a random step size between 1 and 20 for a true continuous gradient
-            let lumStep = 0;
-            let colorStep = 0;
+            // Logging variables set to reflect the massive spread bounds
+            let lumSpread = 0, colorSpread = 0;
 
             if (currentCondition === "Hue_Only") {
-                colorStep = 1 + (Math.random() * 19); 
+                colorSpread = 80; 
             } else if (currentCondition === "Luminance_Only") {
-                lumStep = 1 + (Math.random() * 19);
+                lumSpread = 70;
             } else if (currentCondition === "Hue_And_Luminance") {
-                lumStep = 1 + (Math.random() * 19);
-                colorStep = 1 + (Math.random() * 19);
+                lumSpread = 70;
+                colorSpread = 80;
             }
 
-            // Theoretical total spread = step size * 3 (since there are 4 colors)
-            // Feeds directly into CSV metrics to preserve the existing data structure identically
-            let lumVariance = lumStep * 3; 
-            let colorVariance = colorStep * 3;
-
             currentTrialMetrics = {
-                spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
+                spatialFreq: randomFreq, lumContrast: lumSpread, colorClutter: colorSpread,
                 condition: currentCondition, baseL: 50, baseA: randomBaseA, baseB: randomBaseB,
-                lumStep: lumStep, colorStep: colorStep, 
                 empSpatial: 0, empLum: 0, empColor: 0
             };
 
@@ -486,7 +479,6 @@
         function handleInteraction(event) {
             if (!gameActive) return;
             
-            // 300ms grace period prevents phantom clicks
             if (Date.now() - startTime < 300) return; 
 
             if (event.cancelable) event.preventDefault(); 
@@ -508,7 +500,7 @@
                 
                 const sw = window.innerWidth, sh = window.innerHeight;
                 
-                // Data structure identical to previous versions
+                // Structure identically preserved for easy CSV appending
                 sessionData.push([
                     participantId, deviceType, difficultyMode, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, misses,
                     parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
