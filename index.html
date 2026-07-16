@@ -228,7 +228,7 @@
             return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
-        // --- BACKGROUND GENERATOR WITH MAXIMIZED BIMODAL VARIANCE ---
+        // --- BACKGROUND GENERATOR WITH 4-COLOR FORCED VARIANCE ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
@@ -236,37 +236,38 @@
 
             const paletteSize = 4;
             const palette = [];
+            const minDiff = 15; // Minimum step between colors
 
-            // This helper stretches 4 colors across the entire specified boundaries
-            // This guarantees the absolute maximum possible Standard Deviation for the condition
-            function getMaxSpacedValues(minBound, maxBound) {
-                const step = (maxBound - minBound) / 3; 
+            // Helper to generate 4 values forced to be at least minDiff (15) apart
+            function getSpacedValues(minBound, maxBound) {
+                const requiredSpan = minDiff * 3; // We need 45 units of space total (e.g., 10 to 55)
+                const start = minBound + Math.random() * (maxBound - minBound - requiredSpan);
                 return [
-                    minBound, 
-                    minBound + step, 
-                    minBound + (step * 2), 
-                    maxBound
+                    start, 
+                    start + minDiff + (Math.random() * 3),       
+                    start + (minDiff * 2) + (Math.random() * 3), 
+                    start + (minDiff * 3) + (Math.random() * 3)  
                 ];
             }
 
             let lValues = [], aValues = [];
 
             if (metrics.condition === 'Control') {
-                // Control: Anchor point (Zero variance)
+                // Control: All 4 palette colors are identical
                 lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
                 aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
             } else if (metrics.condition === 'Luminance_Only') {
-                // Stretches Lightness from 15 to 85 (Span of 70). Theoretical SD is ~26.
-                lValues = getMaxSpacedValues(15, 85); 
+                // Luminance varies by at least 15; Hue remains flat
+                lValues = getSpacedValues(10, 90); 
                 aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
             } else if (metrics.condition === 'Hue_Only') {
-                // Stretches Hue from -40 to +40 (Span of 80). Theoretical SD is ~30.
+                // Hue varies by at least 15; Luminance remains flat
                 lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
-                aValues = getMaxSpacedValues(-40, 40); 
+                aValues = getSpacedValues(-30, 40); 
             } else if (metrics.condition === 'Hue_And_Luminance') {
-                // Maximizes both simultaneously
-                lValues = getMaxSpacedValues(15, 85);
-                aValues = getMaxSpacedValues(-40, 40);
+                // Both vary by at least 15
+                lValues = getSpacedValues(10, 90);
+                aValues = getSpacedValues(-30, 40);
                 
                 // Shuffle the hue array so Hue and Luminance don't predictably step up together
                 for (let i = aValues.length - 1; i > 0; i--) {
@@ -355,22 +356,16 @@
             
             const randomFreq = 0.01 + (Math.random() * 0.08); 
             const randomBaseA = -30 + (Math.random() * 60); 
-            const randomBaseB = 0; // Neutral B-axis prevents gamut clipping
+            const randomBaseB = 50; 
             
-            // Logging variables set to reflect the massive spread bounds
-            let lumSpread = 0, colorSpread = 0;
-
-            if (currentCondition === "Hue_Only") {
-                colorSpread = 80; 
-            } else if (currentCondition === "Luminance_Only") {
-                lumSpread = 70;
-            } else if (currentCondition === "Hue_And_Luminance") {
-                lumSpread = 70;
-                colorSpread = 80;
-            }
+            // Expected parameters for logging
+            let lumVariance = 0, colorVariance = 0;
+            if (currentCondition === "Hue_Only") colorVariance = 20; 
+            else if (currentCondition === "Luminance_Only") lumVariance = 20;
+            else if (currentCondition === "Hue_And_Luminance") { lumVariance = 20; colorVariance = 20; }
 
             currentTrialMetrics = {
-                spatialFreq: randomFreq, lumContrast: lumSpread, colorClutter: colorSpread,
+                spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
                 condition: currentCondition, baseL: 50, baseA: randomBaseA, baseB: randomBaseB,
                 empSpatial: 0, empLum: 0, empColor: 0
             };
@@ -399,6 +394,7 @@
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
             
+            // Capture Repeat Player Info
             selfReportedRepeat = document.getElementById('repeat-select').value;
             systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No";
             
@@ -439,6 +435,7 @@
             currentMaxY = boardHeight - targetSize;
             currentSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
             
+            // Safe Spawn Zone Logic: Spawns in the middle 80% of the screen
             const safeMarginX = currentMaxX * 0.1;
             const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
             posX = safeMarginX + Math.random() * (currentMaxX - 2 * safeMarginX); 
@@ -467,6 +464,7 @@
 
             posX += velocityX * deltaTime; posY += velocityY * deltaTime;
             
+            // Standard smooth bouncing off boundaries
             if (posX <= 0) { posX = 0; velocityX *= -1; }
             if (posX >= currentMaxX) { posX = currentMaxX; velocityX *= -1; }
             if (posY <= currentHeaderHeight) { posY = currentHeaderHeight; velocityY *= -1; }
@@ -476,14 +474,17 @@
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
+        // --- UPDATED POINTERDOWN HANDLER ---
         function handleInteraction(event) {
             if (!gameActive) return;
             
+            // 300ms grace period prevents phantom clicks from the "Next Trial" button hitting the board
             if (Date.now() - startTime < 300) return; 
 
             if (event.cancelable) event.preventDefault(); 
             if (Date.now() - lastMissTime < 100) return; 
             
+            // pointerdown seamlessly handles both mobile tap coordinates and mouse coordinates
             const clientX = event.clientX; 
             const clientY = event.clientY; 
 
@@ -496,11 +497,11 @@
                 cancelAnimationFrame(animationFrameId); 
                 clearInterval(liveTimerInterval);
                 
+                // ParseFloat strips the String conversion, ensuring strict Numbers for statistics
                 const reactionTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(3)); 
                 
                 const sw = window.innerWidth, sh = window.innerHeight;
                 
-                // Structure identically preserved for easy CSV appending
                 sessionData.push([
                     participantId, deviceType, difficultyMode, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, misses,
                     parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
@@ -525,12 +526,14 @@
             }
         }
 
+        // Pointerdown completely replaces mousedown/touchstart, preventing double-fires on mobile
         board.addEventListener('pointerdown', handleInteraction);
         nextTrialBtn.addEventListener('click', startTrial);
 
         finishSessionBtn.addEventListener('click', () => {
             finishSessionBtn.disabled = true; 
             
+            // Tag the browser memory so we know they played
             localStorage.setItem('hasPlayedCatchTheCircle', 'true');
             
             uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
