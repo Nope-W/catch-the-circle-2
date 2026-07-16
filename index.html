@@ -126,7 +126,6 @@
                     <option value="Smartphone">Smartphone</option>
                 </select>
             </div>
-            <!-- Added Repeat Player Dropdown -->
             <div class="control-group">
                 <label>Have you played before?</label>
                 <select id="repeat-select">
@@ -158,7 +157,6 @@
     <script>
         // --- BLOCK RANDOMIZATION SETUP ---
         const conditionsList = ['Hue_Only', 'Luminance_Only', 'Hue_And_Luminance', 'Control'];
-        // Using 16 trials total as previously mapped out for even balance. (4 of each)
         const TRIALS_PER_CONDITION = 4; 
         const MAX_TRIALS = conditionsList.length * TRIALS_PER_CONDITION; 
         
@@ -183,7 +181,7 @@
         let posX = 0, posY = 0, velocityX = 0, velocityY = 0;
         let currentMaxX = 0, currentMaxY = 0, currentHeaderHeight = 0, currentSpeedPPS = 0;
         
-        // Tracking Variables (Updated to include repeat tracking)
+        // Tracking Variables
         let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
         let selfReportedRepeat = "No", systemDetectedRepeat = "No";
         const speedMultiplier = 10, difficultyMode = "Hard";
@@ -230,24 +228,57 @@
             return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
-        // --- BACKGROUND GENERATOR WITH ECOLOGICAL CONSTRAINTS ---
+        // --- BACKGROUND GENERATOR WITH 4-COLOR FORCED VARIANCE ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
             const height = canvas.height;
 
-            const paletteSize = 10; 
+            const paletteSize = 4;
             const palette = [];
-            for(let i=0; i<paletteSize; i++) {
-                let lRaw = metrics.baseL + (Math.random() * 2 - 1) * metrics.lumContrast;
-                let aRaw = metrics.baseA + (Math.random() * 2 - 1) * metrics.colorClutter;
-                let bRaw = 50; 
+            const minDiff = 15; // Minimum step between colors
 
-                let l = Math.max(10, Math.min(90, lRaw));
-                let a = Math.max(-30, Math.min(30, aRaw));
-                let b = bRaw;
+            // Helper to generate 4 values forced to be at least minDiff (15) apart
+            function getSpacedValues(minBound, maxBound) {
+                const requiredSpan = minDiff * 3; // We need 45 units of space total (e.g., 10 to 55)
+                const start = minBound + Math.random() * (maxBound - minBound - requiredSpan);
+                return [
+                    start, 
+                    start + minDiff + (Math.random() * 3),       
+                    start + (minDiff * 2) + (Math.random() * 3), 
+                    start + (minDiff * 3) + (Math.random() * 3)  
+                ];
+            }
 
-                palette.push(labToRgb(l, a, b));
+            let lValues = [], aValues = [];
+
+            if (metrics.condition === 'Control') {
+                // Control: All 4 palette colors are identical
+                lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
+                aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
+            } else if (metrics.condition === 'Luminance_Only') {
+                // Luminance varies by at least 15; Hue remains flat
+                lValues = getSpacedValues(10, 90); 
+                aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
+            } else if (metrics.condition === 'Hue_Only') {
+                // Hue varies by at least 15; Luminance remains flat
+                lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
+                aValues = getSpacedValues(-30, 40); 
+            } else if (metrics.condition === 'Hue_And_Luminance') {
+                // Both vary by at least 15
+                lValues = getSpacedValues(10, 90);
+                aValues = getSpacedValues(-30, 40);
+                
+                // Shuffle the hue array so Hue and Luminance don't predictably step up together
+                for (let i = aValues.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [aValues[i], aValues[j]] = [aValues[j], aValues[i]];
+                }
+            }
+
+            // Convert spaced LAB arrays into RGB for the palette
+            for(let i = 0; i < paletteSize; i++) {
+                palette.push(labToRgb(lValues[i], aValues[i], metrics.baseB)); 
             }
 
             ctx.fillStyle = `rgb(${palette[0][0]}, ${palette[0][1]}, ${palette[0][2]})`;
@@ -270,7 +301,7 @@
             const sampleStep = 8; 
             
             let sumR = 0, sumG = 0, sumB = 0;
-            let lValues = [], aValues = [], bValues = [], edgeMagnitudes = [];
+            let empLValues = [], empAValues = [], empBValues = [], edgeMagnitudes = [];
             
             for (let y = 0; y < height - sampleStep; y += sampleStep) {
                 for (let x = 0; x < width - sampleStep; x += sampleStep) {
@@ -280,9 +311,9 @@
                     sumR += r; sumG += g; sumB += b;
                     
                     const lab = rgbToLab(r, g, b);
-                    lValues.push(lab[0]);
-                    aValues.push(lab[1]);
-                    bValues.push(lab[2]);
+                    empLValues.push(lab[0]);
+                    empAValues.push(lab[1]);
+                    empBValues.push(lab[2]);
 
                     const rightIdx = (y * width + (x + sampleStep)) * 4;
                     const bottomIdx = ((y + sampleStep) * width + x) * 4;
@@ -295,18 +326,18 @@
                 }
             }
             
-            const sampleSize = lValues.length;
+            const sampleSize = empLValues.length;
 
-            const meanL = lValues.reduce((a, b) => a + b, 0) / sampleSize;
-            const meanA = aValues.reduce((a, b) => a + b, 0) / sampleSize;
-            const meanB = bValues.reduce((a, b) => a + b, 0) / sampleSize;
+            const meanL = empLValues.reduce((a, b) => a + b, 0) / sampleSize;
+            const meanA = empAValues.reduce((a, b) => a + b, 0) / sampleSize;
+            const meanB = empBValues.reduce((a, b) => a + b, 0) / sampleSize;
             const meanEdge = edgeMagnitudes.reduce((a, b) => a + b, 0) / sampleSize;
 
             let varL = 0, varA = 0, varB = 0;
             for(let i=0; i<sampleSize; i++) {
-                varL += Math.pow(lValues[i] - meanL, 2);
-                varA += Math.pow(aValues[i] - meanA, 2);
-                varB += Math.pow(bValues[i] - meanB, 2);
+                varL += Math.pow(empLValues[i] - meanL, 2);
+                varA += Math.pow(empAValues[i] - meanA, 2);
+                varB += Math.pow(empBValues[i] - meanB, 2);
             }
             
             const empiricalLumSD = Math.sqrt(varL / sampleSize);
@@ -327,21 +358,11 @@
             const randomBaseA = -30 + (Math.random() * 60); 
             const randomBaseB = 50; 
             
+            // Expected parameters for logging
             let lumVariance = 0, colorVariance = 0;
-            
-            if (currentCondition === "Hue_Only") {
-                lumVariance = 0; 
-                colorVariance = 15 + (Math.random() * 15); 
-            } else if (currentCondition === "Luminance_Only") {
-                lumVariance = 20 + (Math.random() * 20); 
-                colorVariance = 0; 
-            } else if (currentCondition === "Hue_And_Luminance") {
-                lumVariance = 20 + (Math.random() * 20); 
-                colorVariance = 15 + (Math.random() * 15); 
-            } else if (currentCondition === "Control") {
-                lumVariance = 0; 
-                colorVariance = 0; 
-            }
+            if (currentCondition === "Hue_Only") colorVariance = 20; 
+            else if (currentCondition === "Luminance_Only") lumVariance = 20;
+            else if (currentCondition === "Hue_And_Luminance") { lumVariance = 20; colorVariance = 20; }
 
             currentTrialMetrics = {
                 spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
@@ -453,31 +474,39 @@
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
+        // --- UPDATED POINTERDOWN HANDLER ---
         function handleInteraction(event) {
             if (!gameActive) return;
+            
+            // 300ms grace period prevents phantom clicks from the "Next Trial" button hitting the board
+            if (Date.now() - startTime < 300) return; 
+
             if (event.cancelable) event.preventDefault(); 
             if (Date.now() - lastMissTime < 100) return; 
             
-            let clientX, clientY;
-            if (event.type === 'touchstart' || event.type === 'touchmove') {
-                clientX = event.changedTouches[0].clientX; clientY = event.changedTouches[0].clientY;
-            } else { clientX = event.clientX; clientY = event.clientY; }
+            // pointerdown seamlessly handles both mobile tap coordinates and mouse coordinates
+            const clientX = event.clientX; 
+            const clientY = event.clientY; 
 
             const boardRect = board.getBoundingClientRect();
             const dx = (clientX - boardRect.left) - (posX + target.clientWidth / 2);
-            const dy = (clientY - boardRect.top) - (posY + target.clientWidth / 2);
+            const dy = (clientY - boardRect.top) - (posY + target.clientHeight / 2); 
             
             if (Math.sqrt(dx * dx + dy * dy) <= (target.clientWidth / 2 + 15)) {
-                gameActive = false; cancelAnimationFrame(animationFrameId); clearInterval(liveTimerInterval);
-                const reactionTime = ((Date.now() - startTime) / 1000).toFixed(3); 
+                gameActive = false; 
+                cancelAnimationFrame(animationFrameId); 
+                clearInterval(liveTimerInterval);
+                
+                // ParseFloat strips the String conversion, ensuring strict Numbers for statistics
+                const reactionTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(3)); 
+                
                 const sw = window.innerWidth, sh = window.innerHeight;
                 
-                // Added selfReportedRepeat and systemDetectedRepeat into the array payload
                 sessionData.push([
                     participantId, deviceType, difficultyMode, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, misses,
-                    currentTrialMetrics.spatialFreq.toFixed(4), currentTrialMetrics.empSpatial.toFixed(2),
-                    currentTrialMetrics.lumContrast.toFixed(2), currentTrialMetrics.empLum.toFixed(2),
-                    currentTrialMetrics.colorClutter.toFixed(2), currentTrialMetrics.empColor.toFixed(2),
+                    parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
+                    parseFloat(currentTrialMetrics.lumContrast.toFixed(2)), parseFloat(currentTrialMetrics.empLum.toFixed(2)),
+                    parseFloat(currentTrialMetrics.colorClutter.toFixed(2)), parseFloat(currentTrialMetrics.empColor.toFixed(2)),
                     currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
                 ]);
                 
@@ -497,8 +526,8 @@
             }
         }
 
-        board.addEventListener('mousedown', handleInteraction);
-        board.addEventListener('touchstart', handleInteraction, {passive: false});
+        // Pointerdown completely replaces mousedown/touchstart, preventing double-fires on mobile
+        board.addEventListener('pointerdown', handleInteraction);
         nextTrialBtn.addEventListener('click', startTrial);
 
         finishSessionBtn.addEventListener('click', () => {
