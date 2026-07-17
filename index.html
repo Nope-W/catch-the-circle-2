@@ -63,13 +63,15 @@
             padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.3; font-size: 1rem;
         }
         .instructions-box p { margin: 5px 0; } 
-        .warning-text { color: #f39c12; font-weight: bold; }
         
         .form-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; width: 100%; max-width: 700px; flex-wrap: wrap;}
         .control-group { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 160px;}
         .control-group label { margin-bottom: 3px; font-weight: bold; font-size: 0.9rem;}
-        input[type="text"], select { padding: 8px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; width: 90%; }
+        input[type="text"], select { padding: 8px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; width: 90%; transition: 0.2s; }
         
+        /* Error highlighting */
+        .input-error { border: 2px solid #e74c3c !important; background-color: #fadbd8 !important; }
+
         .checkbox-group { margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; cursor: pointer; width: 100%; }
         .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
         
@@ -109,15 +111,15 @@
         <h2>Catch the Target</h2>
         <div class="instructions-box">
             <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged moving target as fast as you can.</p>
-            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site". Landscape mode is strictly required.</p>
+            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Landscape mode is strictly required.</p>
         </div>
         <label class="checkbox-group">
             <input type="checkbox" id="colorblind-check"> I have a color vision deficiency
         </label>
         <div class="form-row">
             <div class="control-group">
-                <label>Gamer Name (random letter will do)</label>
-                <input type="text" id="participant-id" placeholder="e.g., xjhxsjbx" autocomplete="off">
+                <label>Gamer Name (random letter works)</label>
+                <input type="text" id="participant-id" placeholder="e.g., player1" autocomplete="off">
             </div>
             <div class="control-group">
                 <label>Device Type</label>
@@ -400,18 +402,41 @@
         }
 
         startSessionBtn.addEventListener('click', () => {
-            if (window.innerHeight > window.innerWidth) { alert("Please rotate your device to landscape before starting."); return; }
-            const enteredId = document.getElementById('participant-id').value.trim();
-            if (enteredId === "") { alert("Please enter Participant ID"); return; }
-            participantId = enteredId; document.getElementById('participant-id').blur(); 
+            // FIX: Prevent issues when opening on a desktop window that is slightly too narrow
+            if (window.innerHeight > window.innerWidth) { 
+                alert("Please resize your window or rotate your device so it is wider than it is tall (Landscape Mode) before starting."); 
+                return; 
+            }
             
-            if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
+            // FIX: Give clear visual feedback if the name is missing
+            const inputField = document.getElementById('participant-id');
+            const enteredId = inputField.value.trim();
+            if (enteredId === "") { 
+                inputField.classList.add('input-error');
+                inputField.placeholder = "Required: Enter a name!";
+                inputField.focus();
+                return; 
+            }
+            inputField.classList.remove('input-error');
+            
+            participantId = enteredId; 
+            inputField.blur(); 
+            
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
+            }
             
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
-            
             selfReportedRepeat = document.getElementById('repeat-select').value;
-            systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No";
+            
+            // FIX: Wrap localStorage in a try/catch in case the browser blocks it locally
+            try {
+                systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No";
+            } catch(e) {
+                systemDetectedRepeat = "Unknown";
+                console.warn("Local storage access denied by browser.");
+            }
             
             trialPlaylist = [];
             conditionsList.forEach(cond => {
@@ -423,7 +448,8 @@
             
             document.getElementById('trial-counter-display').innerText = `0 / ${MAX_TRIALS}`;
             
-            introScreen.style.display = 'none'; readyScreen.style.display = 'flex';
+            introScreen.style.display = 'none'; 
+            readyScreen.style.display = 'flex';
         });
 
         beginFirstTrialBtn.addEventListener('click', () => {
@@ -504,24 +530,30 @@
         function handleInteraction(event) {
             if (!gameActive) return;
             
-            // FIX 1: Lowered blind spot from 300ms to 50ms so fast reactions are registered
+            // FIX: Lowered blind spot from 300ms to 50ms so fast human reactions are registered
             if (Date.now() - startTime < 50) return; 
 
             if (event.cancelable) event.preventDefault(); 
             
-            const clientX = event.clientX; 
-            const clientY = event.clientY; 
+            // Determine touch coordinates safely depending on the event type
+            let clientX, clientY;
+            if (event.touches && event.touches.length > 0) {
+                clientX = event.touches[0].clientX;
+                clientY = event.touches[0].clientY;
+            } else {
+                clientX = event.clientX;
+                clientY = event.clientY;
+            }
 
             const boardRect = board.getBoundingClientRect();
             
-            // Calculate where the tap landed relative to the game board
             const tapX = clientX - boardRect.left;
             const tapY = clientY - boardRect.top;
             
             const tWidth = target.clientWidth;
             const tHeight = target.clientHeight;
             
-            // FIX 2: 25px visual lag compensation margin
+            // FIX: 25px visual lag compensation margin
             const margin = 25; 
             
             const hitLeft   = posX - margin;
@@ -558,7 +590,7 @@
                     }, 1000);
                 }
             } else {
-                // FIX 3: Placed the debounce timer ONLY on misses, preventing hits from being blocked
+                // FIX: Placed the debounce timer ONLY on misses, preventing good hits from being blocked
                 if (Date.now() - lastMissTime > 150) {
                     lastMissTime = Date.now(); 
                     misses++; 
@@ -567,13 +599,18 @@
             }
         }
 
+        // Using standard mousedown/touchstart as robust fallbacks in case pointerdown fails in a strict environment
         board.addEventListener('pointerdown', handleInteraction);
+        board.addEventListener('touchstart', handleInteraction, {passive: false});
+
         nextTrialBtn.addEventListener('click', startTrial);
 
         finishSessionBtn.addEventListener('click', () => {
             finishSessionBtn.disabled = true; 
             
-            localStorage.setItem('hasPlayedCatchTheCircle', 'true');
+            try {
+                localStorage.setItem('hasPlayedCatchTheCircle', 'true');
+            } catch(e) { }
             
             uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
             fetch("https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec", {
