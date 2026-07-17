@@ -501,13 +501,14 @@
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
-        function handleInteraction(event) {
+function handleInteraction(event) {
             if (!gameActive) return;
             
-            if (Date.now() - startTime < 300) return; 
+            // FIX 1: Reduced from 300ms to 50ms. This prevents button-click carryover 
+            // but won't punish you for having a fast human reaction time.
+            if (Date.now() - startTime < 50) return; 
 
             if (event.cancelable) event.preventDefault(); 
-            if (Date.now() - lastMissTime < 100) return; 
             
             const clientX = event.clientX; 
             const clientY = event.clientY; 
@@ -520,6 +521,54 @@
             
             const tWidth = target.clientWidth;
             const tHeight = target.clientHeight;
+            
+            // Add a small 25px margin. At speed 25, the rectangle moves ~24 pixels EVERY FRAME.
+            // Without this margin, your eyes are literally aiming at a ghost image from the previous frame.
+            const margin = 25; 
+            
+            const hitLeft   = posX - margin;
+            const hitRight  = posX + tWidth + margin;
+            const hitTop    = posY - margin;
+            const hitBottom = posY + tHeight + margin;
+            
+            // Check if it's a HIT
+            if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
+                gameActive = false; 
+                cancelAnimationFrame(animationFrameId); 
+                clearInterval(liveTimerInterval);
+                
+                const reactionTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(3)); 
+                const sw = window.innerWidth, sh = window.innerHeight;
+                
+                sessionData.push([
+                    participantId, deviceType, difficultyMode, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, misses,
+                    parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
+                    parseFloat(currentTrialMetrics.lumContrast.toFixed(2)), parseFloat(currentTrialMetrics.empLum.toFixed(2)),
+                    parseFloat(currentTrialMetrics.colorClutter.toFixed(2)), parseFloat(currentTrialMetrics.empColor.toFixed(2)),
+                    currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
+                ]);
+                
+                target.style.display = 'none'; 
+                if (trialCounter >= MAX_TRIALS) endScreen.style.display = 'flex';
+                else {
+                    document.getElementById('trial-time').innerText = reactionTime; trialScreen.style.display = 'flex'; 
+                    nextTrialBtn.disabled = true; let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                    const cdTimer = setInterval(() => {
+                        cd--;
+                        if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                        else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
+                    }, 1000);
+                }
+            } else {
+                // FIX 2: Only apply the lockout to MISSES. A recent miss should never block a valid hit.
+                // This prevents a "rolling finger" on a mobile screen from registering as 5 misses instantly.
+                if (Date.now() - lastMissTime > 150) {
+                    lastMissTime = Date.now(); 
+                    misses++; 
+                    document.getElementById('miss-display').innerText = misses;
+                }
+            }
+        }
             
 // Added a 25px lag-compensation margin. 
             // This absorbs the frame-delay and finger width without making the target feel artificially huge.
