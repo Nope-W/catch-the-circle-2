@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Bouncing</title>
+    <title>Catch the Circle - Escaping</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -115,7 +115,7 @@
         </label>
         <div class="form-row">
             <div class="control-group">
-                <label>Gamer Name(random letter will do)</label>
+                <label>Gamer Name (random letter will do)</label>
                 <input type="text" id="participant-id" placeholder="e.g., xjhxsjbx" autocomplete="off">
             </div>
             <div class="control-group">
@@ -184,7 +184,8 @@
         // Tracking Variables
         let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
         let selfReportedRepeat = "No", systemDetectedRepeat = "No";
-        const speedMultiplier = 10, difficultyMode = "Hard";
+        // INCREASED SPEED MULTIPLIER (from 10 to 17)
+        const speedMultiplier = 17, difficultyMode = "Hard";
         
         let sessionData = []; let currentTrialMetrics = {}; 
 
@@ -238,9 +239,8 @@
             const palette = [];
             const minDiff = 15; // Minimum step between colors
 
-            // Helper to generate 4 values forced to be at least minDiff (15) apart
             function getSpacedValues(minBound, maxBound) {
-                const requiredSpan = minDiff * 3; // We need 45 units of space total (e.g., 10 to 55)
+                const requiredSpan = minDiff * 3; 
                 const start = minBound + Math.random() * (maxBound - minBound - requiredSpan);
                 return [
                     start, 
@@ -253,30 +253,24 @@
             let lValues = [], aValues = [];
 
             if (metrics.condition === 'Control') {
-                // Control: All 4 palette colors are identical
                 lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
                 aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
             } else if (metrics.condition === 'Luminance_Only') {
-                // Luminance varies by at least 15; Hue remains flat
                 lValues = getSpacedValues(10, 90); 
                 aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
             } else if (metrics.condition === 'Hue_Only') {
-                // Hue varies by at least 15; Luminance remains flat
                 lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
                 aValues = getSpacedValues(-30, 40); 
             } else if (metrics.condition === 'Hue_And_Luminance') {
-                // Both vary by at least 15
                 lValues = getSpacedValues(10, 90);
                 aValues = getSpacedValues(-30, 40);
                 
-                // Shuffle the hue array so Hue and Luminance don't predictably step up together
                 for (let i = aValues.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [aValues[i], aValues[j]] = [aValues[j], aValues[i]];
                 }
             }
 
-            // Convert spaced LAB arrays into RGB for the palette
             for(let i = 0; i < paletteSize; i++) {
                 palette.push(labToRgb(lValues[i], aValues[i], metrics.baseB)); 
             }
@@ -327,7 +321,6 @@
             }
             
             const sampleSize = empLValues.length;
-
             const meanL = empLValues.reduce((a, b) => a + b, 0) / sampleSize;
             const meanA = empAValues.reduce((a, b) => a + b, 0) / sampleSize;
             const meanB = empBValues.reduce((a, b) => a + b, 0) / sampleSize;
@@ -358,7 +351,6 @@
             const randomBaseA = -30 + (Math.random() * 60); 
             const randomBaseB = 50; 
             
-            // Expected parameters for logging
             let lumVariance = 0, colorVariance = 0;
             if (currentCondition === "Hue_Only") colorVariance = 20; 
             else if (currentCondition === "Luminance_Only") lumVariance = 20;
@@ -394,7 +386,6 @@
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
             deviceType = document.getElementById('device-select').value;
             
-            // Capture Repeat Player Info
             selfReportedRepeat = document.getElementById('repeat-select').value;
             systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No";
             
@@ -435,15 +426,17 @@
             currentMaxY = boardHeight - targetSize;
             currentSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
             
-            // Safe Spawn Zone Logic: Spawns in the middle 80% of the screen
             const safeMarginX = currentMaxX * 0.1;
             const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
+            
+            // Spawn inside at first
             posX = safeMarginX + Math.random() * (currentMaxX - 2 * safeMarginX); 
             posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             
-            const angle = Math.random() * 2 * Math.PI;
-            velocityX = Math.cos(angle) * currentSpeedPPS; 
-            velocityY = Math.sin(angle) * currentSpeedPPS;
+            // Strictly Horizontal Movement (Left-to-Right or Right-to-Left)
+            velocityY = 0;
+            let direction = Math.random() < 0.5 ? 1 : -1;
+            velocityX = currentSpeedPPS * direction; 
 
             target.style.left = posX + 'px'; 
             target.style.top = posY + 'px';
@@ -462,29 +455,36 @@
             let deltaTime = Math.min((currentTime - lastFrameTime) / 1000, 0.1);
             lastFrameTime = currentTime;
 
-            posX += velocityX * deltaTime; posY += velocityY * deltaTime;
+            posX += velocityX * deltaTime; 
+            posY += velocityY * deltaTime;
             
-            // Standard smooth bouncing off boundaries
-            if (posX <= 0) { posX = 0; velocityX *= -1; }
-            if (posX >= currentMaxX) { posX = currentMaxX; velocityX *= -1; }
-            if (posY <= currentHeaderHeight) { posY = currentHeaderHeight; velocityY *= -1; }
-            if (posY >= currentMaxY) { posY = currentMaxY; velocityY *= -1; }
+            const tWidth = target.clientWidth;
+            const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
+
+            // Escaping screen boundaries and reappearing on the other side logic
+            if (velocityX > 0 && posX > currentMaxX + tWidth) {
+                // Escaped right edge -> Reappear on left edge
+                posX = -tWidth;
+                posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
+            } 
+            else if (velocityX < 0 && posX < -tWidth) {
+                // Escaped left edge -> Reappear on right edge
+                posX = currentMaxX + tWidth;
+                posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
+            }
 
             target.style.left = posX + 'px'; target.style.top = posY + 'px';
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
-        // --- UPDATED POINTERDOWN HANDLER ---
         function handleInteraction(event) {
             if (!gameActive) return;
             
-            // 300ms grace period prevents phantom clicks from the "Next Trial" button hitting the board
             if (Date.now() - startTime < 300) return; 
 
             if (event.cancelable) event.preventDefault(); 
             if (Date.now() - lastMissTime < 100) return; 
             
-            // pointerdown seamlessly handles both mobile tap coordinates and mouse coordinates
             const clientX = event.clientX; 
             const clientY = event.clientY; 
 
@@ -497,7 +497,6 @@
                 cancelAnimationFrame(animationFrameId); 
                 clearInterval(liveTimerInterval);
                 
-                // ParseFloat strips the String conversion, ensuring strict Numbers for statistics
                 const reactionTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(3)); 
                 
                 const sw = window.innerWidth, sh = window.innerHeight;
@@ -526,14 +525,12 @@
             }
         }
 
-        // Pointerdown completely replaces mousedown/touchstart, preventing double-fires on mobile
         board.addEventListener('pointerdown', handleInteraction);
         nextTrialBtn.addEventListener('click', startTrial);
 
         finishSessionBtn.addEventListener('click', () => {
             finishSessionBtn.disabled = true; 
             
-            // Tag the browser memory so we know they played
             localStorage.setItem('hasPlayedCatchTheCircle', 'true');
             
             uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
