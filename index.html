@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Circle - Escaping</title>
+    <title>Catch the Rectangle - Organic Clutter</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -35,7 +35,8 @@
         .stats { display: flex; gap: 20px; font-size: 1.1rem; margin: 0; }
         
         #target { 
-            position: absolute; display: none; border-radius: 50%; 
+            position: absolute; display: none; 
+            /* Rectangle styling */
             box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 5; pointer-events: none; 
         }
 
@@ -91,7 +92,7 @@
     </div>
 
     <div class="header-container">
-        <h1>Catch the Circle</h1>
+        <h1>Catch the Target</h1>
         <div id="rotate-hint">📱 Rotate to Landscape</div>
         <div class="stats">
             <div>Trial: <strong id="trial-counter-display">0 / 16</strong></div>
@@ -105,9 +106,9 @@
     </div>
 
     <div id="intro-screen" class="overlay-screen">
-        <h2>Catch the Circle</h2>
+        <h2>Catch the Target</h2>
         <div class="instructions-box">
-            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged moving circle as fast as you can.</p>
+            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged moving target as fast as you can.</p>
             <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Please request "Desktop Site". Landscape mode is strictly required.</p>
         </div>
         <label class="checkbox-group">
@@ -184,7 +185,6 @@
         // Tracking Variables
         let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
         let selfReportedRepeat = "No", systemDetectedRepeat = "No";
-        // INCREASED SPEED MULTIPLIER (from 10 to 17)
         const speedMultiplier = 17, difficultyMode = "Hard";
         
         let sessionData = []; let currentTrialMetrics = {}; 
@@ -229,7 +229,7 @@
             return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
-        // --- BACKGROUND GENERATOR WITH 4-COLOR FORCED VARIANCE ---
+        // --- BACKGROUND GENERATOR WITH ORGANIC SHAPES ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
@@ -237,7 +237,7 @@
 
             const paletteSize = 4;
             const palette = [];
-            const minDiff = 15; // Minimum step between colors
+            const minDiff = 15; 
 
             function getSpacedValues(minBound, maxBound) {
                 const requiredSpan = minDiff * 3; 
@@ -264,7 +264,6 @@
             } else if (metrics.condition === 'Hue_And_Luminance') {
                 lValues = getSpacedValues(10, 90);
                 aValues = getSpacedValues(-30, 40);
-                
                 for (let i = aValues.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
                     [aValues[i], aValues[j]] = [aValues[j], aValues[i]];
@@ -278,17 +277,40 @@
             ctx.fillStyle = `rgb(${palette[0][0]}, ${palette[0][1]}, ${palette[0][2]})`;
             ctx.fillRect(0, 0, width, height);
 
-            const rectCount = Math.floor(metrics.spatialFreq * 50000) + 100;
-            const maxRectSize = (width + height) / (metrics.spatialFreq * 100 + 10);
+            const shapeCount = Math.floor(metrics.spatialFreq * 12000) + 150;
+            const maxShapeSize = (width + height) / (metrics.spatialFreq * 80 + 5);
 
-            for (let i = 0; i < rectCount; i++) {
-                const w = Math.random() * maxRectSize + 10;
-                const h = Math.random() * maxRectSize + 10;
-                const x = Math.random() * (width + w) - w;
-                const y = Math.random() * (height + h) - h;
+            for (let i = 0; i < shapeCount; i++) {
+                const radius = (Math.random() * maxShapeSize + 20) / 2;
+                const cx = Math.random() * (width + radius * 2) - radius;
+                const cy = Math.random() * (height + radius * 2) - radius;
                 const color = palette[Math.floor(Math.random() * palette.length)];
+                
                 ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-                ctx.fillRect(x, y, w, h);
+                ctx.beginPath();
+                
+                const shapeType = Math.random();
+                
+                if (shapeType < 0.35) {
+                    const radiusY = radius * (0.4 + Math.random() * 0.6);
+                    const rotation = Math.random() * Math.PI * 2;
+                    ctx.ellipse(cx, cy, radius, radiusY, rotation, 0, 2 * Math.PI);
+                } else {
+                    const vertices = Math.floor(Math.random() * 6) + 3; 
+                    for (let j = 0; j < vertices; j++) {
+                        const baseAngle = (j / vertices) * (2 * Math.PI);
+                        const angle = baseAngle + (Math.random() * 0.4 - 0.2);
+                        const r = radius * (0.3 + Math.random() * 0.7);
+                        const px = cx + r * Math.cos(angle);
+                        const py = cy + r * Math.sin(angle);
+                        
+                        if (j === 0) ctx.moveTo(px, py);
+                        else ctx.lineTo(px, py);
+                    }
+                }
+                
+                ctx.closePath();
+                ctx.fill();
             }
 
             const imgData = ctx.getImageData(0, 0, width, height).data;
@@ -418,22 +440,25 @@
             setupTrialBackground();
             
             const boardWidth = board.clientWidth, boardHeight = board.clientHeight;
-            let targetSize = Math.max(boardHeight * (60 / 600), 45);
-            target.style.width = `${targetSize}px`; target.style.height = `${targetSize}px`; 
+            
+            // Set up a longer rectangular target shape (Width is 2.5x the Height)
+            let targetHeight = Math.max(boardHeight * (60 / 600), 45);
+            let targetWidth = targetHeight * 2.5; 
+            
+            target.style.width = `${targetWidth}px`; 
+            target.style.height = `${targetHeight}px`; 
 
             currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
-            currentMaxX = boardWidth - targetSize;
-            currentMaxY = boardHeight - targetSize;
+            currentMaxX = boardWidth - targetWidth;
+            currentMaxY = boardHeight - targetHeight;
             currentSpeedPPS = (speedMultiplier * 60) * (boardWidth / 800);
             
             const safeMarginX = currentMaxX * 0.1;
             const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
             
-            // Spawn inside at first
             posX = safeMarginX + Math.random() * (currentMaxX - 2 * safeMarginX); 
             posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             
-            // Strictly Horizontal Movement (Left-to-Right or Right-to-Left)
             velocityY = 0;
             let direction = Math.random() < 0.5 ? 1 : -1;
             velocityX = currentSpeedPPS * direction; 
@@ -461,14 +486,11 @@
             const tWidth = target.clientWidth;
             const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
 
-            // Escaping screen boundaries and reappearing on the other side logic
             if (velocityX > 0 && posX > currentMaxX + tWidth) {
-                // Escaped right edge -> Reappear on left edge
                 posX = -tWidth;
                 posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             } 
             else if (velocityX < 0 && posX < -tWidth) {
-                // Escaped left edge -> Reappear on right edge
                 posX = currentMaxX + tWidth;
                 posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             }
@@ -489,10 +511,21 @@
             const clientY = event.clientY; 
 
             const boardRect = board.getBoundingClientRect();
-            const dx = (clientX - boardRect.left) - (posX + target.clientWidth / 2);
-            const dy = (clientY - boardRect.top) - (posY + target.clientHeight / 2); 
             
-            if (Math.sqrt(dx * dx + dy * dy) <= (target.clientWidth / 2 + 15)) {
+            // Calculate where the tap landed relative to the game board
+            const tapX = clientX - boardRect.left;
+            const tapY = clientY - boardRect.top;
+            
+            const tWidth = target.clientWidth;
+            const tHeight = target.clientHeight;
+            
+            // Strict Rectangular (AABB) collision detection with NO forgiveness margins
+            const hitLeft   = posX;
+            const hitRight  = posX + tWidth;
+            const hitTop    = posY;
+            const hitBottom = posY + tHeight;
+            
+            if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
                 gameActive = false; 
                 cancelAnimationFrame(animationFrameId); 
                 clearInterval(liveTimerInterval);
