@@ -521,11 +521,14 @@
             const tWidth = target.clientWidth;
             const tHeight = target.clientHeight;
             
-            // Strict Rectangular (AABB) collision detection with NO forgiveness margins
-            const hitLeft   = posX;
-            const hitRight  = posX + tWidth;
-            const hitTop    = posY;
-            const hitBottom = posY + tHeight;
+// Added a 25px lag-compensation margin. 
+            // This absorbs the frame-delay and finger width without making the target feel artificially huge.
+            const margin = 25; 
+
+            const hitLeft   = posX - margin;
+            const hitRight  = posX + tWidth + margin;
+            const hitTop    = posY - margin;
+            const hitBottom = posY + tHeight + margin;
             
             if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
                 gameActive = false; 
