@@ -185,7 +185,9 @@
         // Tracking Variables
         let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
         let selfReportedRepeat = "No", systemDetectedRepeat = "No";
-        const speedMultiplier = 17, difficultyMode = "Hard";
+        
+        // INCREASED SPEED from 17 to 25
+        const speedMultiplier = 25, difficultyMode = "Hard";
         
         let sessionData = []; let currentTrialMetrics = {}; 
 
@@ -441,9 +443,9 @@
             
             const boardWidth = board.clientWidth, boardHeight = board.clientHeight;
             
-            // Set up a longer rectangular target shape (Width is 2.5x the Height)
+            // REDUCED WIDTH: Set up a rectangular target shape (Width is 1.5x the Height, down from 2.5)
             let targetHeight = Math.max(boardHeight * (60 / 600), 45);
-            let targetWidth = targetHeight * 2.5; 
+            let targetWidth = targetHeight * 1.5; 
             
             target.style.width = `${targetWidth}px`; 
             target.style.height = `${targetHeight}px`; 
