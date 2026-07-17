@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Rectangle - Organic Clutter</title>
+    <title>Catch the Target - Organic Clutter</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -186,7 +186,7 @@
         let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
         let selfReportedRepeat = "No", systemDetectedRepeat = "No";
         
-        // INCREASED SPEED from 17 to 25
+        // FAST SPEED
         const speedMultiplier = 25, difficultyMode = "Hard";
         
         let sessionData = []; let currentTrialMetrics = {}; 
@@ -443,7 +443,7 @@
             
             const boardWidth = board.clientWidth, boardHeight = board.clientHeight;
             
-            // REDUCED WIDTH: Set up a rectangular target shape (Width is 1.5x the Height, down from 2.5)
+            // Set up a rectangular target shape (Width is 1.5x the Height)
             let targetHeight = Math.max(boardHeight * (60 / 600), 45);
             let targetWidth = targetHeight * 1.5; 
             
@@ -501,11 +501,10 @@
             animationFrameId = requestAnimationFrame(animateTarget);
         }
 
-function handleInteraction(event) {
+        function handleInteraction(event) {
             if (!gameActive) return;
             
-            // FIX 1: Reduced from 300ms to 50ms. This prevents button-click carryover 
-            // but won't punish you for having a fast human reaction time.
+            // FIX 1: Lowered blind spot from 300ms to 50ms so fast reactions are registered
             if (Date.now() - startTime < 50) return; 
 
             if (event.cancelable) event.preventDefault(); 
@@ -522,8 +521,7 @@ function handleInteraction(event) {
             const tWidth = target.clientWidth;
             const tHeight = target.clientHeight;
             
-            // Add a small 25px margin. At speed 25, the rectangle moves ~24 pixels EVERY FRAME.
-            // Without this margin, your eyes are literally aiming at a ghost image from the previous frame.
+            // FIX 2: 25px visual lag compensation margin
             const margin = 25; 
             
             const hitLeft   = posX - margin;
@@ -531,13 +529,13 @@ function handleInteraction(event) {
             const hitTop    = posY - margin;
             const hitBottom = posY + tHeight + margin;
             
-            // Check if it's a HIT
             if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
                 gameActive = false; 
                 cancelAnimationFrame(animationFrameId); 
                 clearInterval(liveTimerInterval);
                 
                 const reactionTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(3)); 
+                
                 const sw = window.innerWidth, sh = window.innerHeight;
                 
                 sessionData.push([
@@ -560,55 +558,12 @@ function handleInteraction(event) {
                     }, 1000);
                 }
             } else {
-                // FIX 2: Only apply the lockout to MISSES. A recent miss should never block a valid hit.
-                // This prevents a "rolling finger" on a mobile screen from registering as 5 misses instantly.
+                // FIX 3: Placed the debounce timer ONLY on misses, preventing hits from being blocked
                 if (Date.now() - lastMissTime > 150) {
                     lastMissTime = Date.now(); 
                     misses++; 
                     document.getElementById('miss-display').innerText = misses;
                 }
-            }
-        }
-            
-// Added a 25px lag-compensation margin. 
-            // This absorbs the frame-delay and finger width without making the target feel artificially huge.
-            const margin = 25; 
-
-            const hitLeft   = posX - margin;
-            const hitRight  = posX + tWidth + margin;
-            const hitTop    = posY - margin;
-            const hitBottom = posY + tHeight + margin;
-            
-            if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
-                gameActive = false; 
-                cancelAnimationFrame(animationFrameId); 
-                clearInterval(liveTimerInterval);
-                
-                const reactionTime = parseFloat(((Date.now() - startTime) / 1000).toFixed(3)); 
-                
-                const sw = window.innerWidth, sh = window.innerHeight;
-                
-                sessionData.push([
-                    participantId, deviceType, difficultyMode, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, misses,
-                    parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
-                    parseFloat(currentTrialMetrics.lumContrast.toFixed(2)), parseFloat(currentTrialMetrics.empLum.toFixed(2)),
-                    parseFloat(currentTrialMetrics.colorClutter.toFixed(2)), parseFloat(currentTrialMetrics.empColor.toFixed(2)),
-                    currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
-                ]);
-                
-                target.style.display = 'none'; 
-                if (trialCounter >= MAX_TRIALS) endScreen.style.display = 'flex';
-                else {
-                    document.getElementById('trial-time').innerText = reactionTime; trialScreen.style.display = 'flex'; 
-                    nextTrialBtn.disabled = true; let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                    const cdTimer = setInterval(() => {
-                        cd--;
-                        if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                        else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
-                    }, 1000);
-                }
-            } else {
-                lastMissTime = Date.now(); misses++; document.getElementById('miss-display').innerText = misses;
             }
         }
 
