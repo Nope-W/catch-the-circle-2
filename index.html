@@ -409,4 +409,240 @@
                 return; 
             }
             
-     
+            const inputField = document.getElementById('participant-id');
+            const enteredId = inputField.value.trim();
+            if (enteredId === "") { 
+                inputField.classList.add('input-error');
+                inputField.placeholder = "Required: Enter a name!";
+                inputField.focus();
+                return; 
+            }
+            inputField.classList.remove('input-error');
+            
+            participantId = enteredId; 
+            isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
+            deviceType = document.getElementById('device-select').value;
+            selfReportedRepeat = document.getElementById('repeat-select').value;
+            
+            try { systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No"; } 
+            catch(e) { systemDetectedRepeat = "Unknown"; }
+            
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
+            }
+
+            trialPlaylist = [];
+            conditionsList.forEach(cond => {
+                for(let i=0; i<TRIALS_PER_CONDITION; i++) trialPlaylist.push(cond);
+            });
+            trialPlaylist = shuffleArray(trialPlaylist);
+            
+            document.getElementById('trial-counter-display').innerText = `0 / ${MAX_TRIALS}`;
+            introScreen.style.display = 'none'; 
+            readyScreen.style.display = 'flex';
+        });
+
+        document.getElementById('begin-first-trial-btn').addEventListener('click', () => {
+            const btn = document.getElementById('begin-first-trial-btn');
+            btn.disabled = true;
+            let cd = 3; btn.innerText = `Starting in ${cd}...`;
+            const cdTimer = setInterval(() => {
+                cd--;
+                if (cd > 0) btn.innerText = `Starting in ${cd}...`;
+                else { clearInterval(cdTimer); readyScreen.style.display = 'none'; startTrial(); }
+            }, 1000);
+        });
+
+        // --- GAME ENGINE ---
+        function startTrial() {
+            trialCounter++; 
+            document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
+            trialScreen.style.display = 'none'; 
+            
+            state.misses = 0; 
+            document.getElementById('miss-display').innerText = state.misses;
+            
+            setupTrialBackground();
+            
+            const boardWidth = board.clientWidth;
+            const boardHeight = board.clientHeight;
+            
+            // Set Target Geometry (Height is standard, Width is 3.5x longer)
+            state.targetH = Math.max(boardHeight * (60 / 600), 45);
+            state.targetW = state.targetH * 3.5; 
+            
+            target.style.width = `${state.targetW}px`; 
+            target.style.height = `${state.targetH}px`; 
+            
+            const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
+            const currentMaxY = boardHeight - state.targetH;
+            const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
+            
+            const currentSpeedPPS = (SPEED_MULTIPLIER * 60) * (boardWidth / 800);
+            const direction = Math.random() < 0.5 ? 1 : -1;
+            
+            // Initial Physics State
+            state.posX = direction === 1 ? -state.targetW : boardWidth + state.targetW;
+            state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
+            state.velocityX = currentSpeedPPS * direction;
+            state.historyBuffer = []; // Clear the anti-lag memory
+            
+            target.style.display = 'block'; 
+            target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
+
+            state.lastFrameTime = performance.now();
+            state.startTime = performance.now();
+            state.active = true;
+
+            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+            state.animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop(timestamp) {
+            if (!state.active) return;
+            
+            let dt = (timestamp - state.lastFrameTime) / 1000;
+            // Prevent massive jumps if browser lags heavily
+            if (dt > 0.1) dt = 0.1; 
+            state.lastFrameTime = timestamp;
+
+            updatePhysics(dt, timestamp);
+            render();
+            
+            document.getElementById('live-time-display').innerText = ((timestamp - state.startTime) / 1000).toFixed(2);
+            state.animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        function updatePhysics(dt, timestamp) {
+            state.posX += state.velocityX * dt;
+            
+            const boardWidth = window.innerWidth;
+            const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
+            const safeMarginY = (window.innerHeight - state.targetH - currentHeaderHeight) * 0.1;
+
+            // Screen wrap logic
+            if (state.velocityX > 0 && state.posX > boardWidth + state.targetW) {
+                state.posX = -state.targetW;
+                state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
+            } 
+            else if (state.velocityX < 0 && state.posX < -state.targetW) {
+                state.posX = boardWidth + state.targetW;
+                state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
+            }
+
+            // Log mathematical truth into history buffer for anti-lag hit detection
+            state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
+            if (state.historyBuffer.length > 30) state.historyBuffer.shift(); // Keep last ~500ms
+        }
+
+        function render() {
+            target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
+        }
+
+        // --- STRICT, LAG-COMPENSATED HIT DETECTION ---
+        board.addEventListener('pointerdown', (e) => {
+            if (!state.active) return;
+            if (e.cancelable) e.preventDefault(); 
+            
+            const tapTime = e.timeStamp;
+            // Blind spot to prevent mis-clicks immediately upon spawn
+            if (tapTime - state.startTime < 50) return; 
+
+            const tapX = e.clientX;
+            const tapY = e.clientY;
+
+            // 1. Find the historical frame closest to the actual physical tap time
+            let closestFrame = state.historyBuffer[0];
+            let smallestTimeDifference = Infinity;
+
+            for (const frame of state.historyBuffer) {
+                const timeDifference = Math.abs(frame.time - tapTime);
+                if (timeDifference < smallestTimeDifference) {
+                    smallestTimeDifference = timeDifference;
+                    closestFrame = frame;
+                }
+            }
+
+            if (!closestFrame) return;
+
+            // 2. Strict Hitbox Math (Zero invisible margins)
+            const hitLeft = closestFrame.x;
+            const hitRight = closestFrame.x + state.targetW;
+            const hitTop = closestFrame.y;
+            const hitBottom = closestFrame.y + state.targetH;
+
+            // 3. Verification
+            if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
+                handleHit(tapTime);
+            } else {
+                handleMiss(tapTime);
+            }
+        });
+
+        function handleHit(tapTime) {
+            state.active = false; 
+            cancelAnimationFrame(state.animationFrameId); 
+            
+            // Calculate reaction using physical tap time, not event firing time
+            const reactionTime = parseFloat(((tapTime - state.startTime) / 1000).toFixed(3)); 
+            
+            const sw = window.innerWidth, sh = window.innerHeight;
+            
+            sessionData.push([
+                participantId, deviceType, DIFFICULTY_MODE, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, state.misses,
+                parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
+                parseFloat(currentTrialMetrics.lumContrast.toFixed(2)), parseFloat(currentTrialMetrics.empLum.toFixed(2)),
+                parseFloat(currentTrialMetrics.colorClutter.toFixed(2)), parseFloat(currentTrialMetrics.empColor.toFixed(2)),
+                currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
+            ]);
+            
+            target.style.display = 'none'; 
+            
+            if (trialCounter >= MAX_TRIALS) endScreen.style.display = 'flex';
+            else {
+                document.getElementById('trial-time').innerText = reactionTime; 
+                trialScreen.style.display = 'flex'; 
+                
+                const nextTrialBtn = document.getElementById('next-trial-btn');
+                nextTrialBtn.disabled = true; 
+                let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                const cdTimer = setInterval(() => {
+                    cd--;
+                    if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                    else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
+                }, 1000);
+            }
+        }
+
+        function handleMiss(tapTime) {
+            if (tapTime - state.lastMissTime > 150) {
+                state.lastMissTime = tapTime; 
+                state.misses++; 
+                document.getElementById('miss-display').innerText = state.misses;
+            }
+        }
+
+        document.getElementById('next-trial-btn').addEventListener('click', startTrial);
+
+        // --- DATA UPLOAD ---
+        const finishSessionBtn = document.getElementById('finish-session-btn');
+        const uploadStatus = document.getElementById('upload-status');
+
+        finishSessionBtn.addEventListener('click', () => {
+            finishSessionBtn.disabled = true; 
+            try { localStorage.setItem('hasPlayedCatchTheCircle', 'true'); } catch(e) { }
+            
+            uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
+            
+            fetch("https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec", {
+                method: 'POST', mode: 'no-cors', body: JSON.stringify(sessionData), headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+            }).then(() => {
+                uploadStatus.innerText = "Upload Complete!"; uploadStatus.style.color = "#2ecc71"; 
+                if (document.fullscreenElement) document.exitFullscreen();
+            }).catch(e => {
+                uploadStatus.innerText = "Error uploading data."; uploadStatus.style.color = "#e74c3c"; finishSessionBtn.disabled = false;
+            });
+        });
+    </script>
+</body>
+</html>
