@@ -552,7 +552,7 @@
             if (!state.active) return;
             if (e.cancelable) e.preventDefault(); 
             
-            const tapTime = e.timeStamp;
+            const tapTime = performance.now();
             // Blind spot to prevent mis-clicks immediately upon spawn
             if (tapTime - state.startTime < 50) return; 
 
