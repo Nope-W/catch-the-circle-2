@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - Lag Compensated</title>
+    <title>Catch the Target - Memory Optimized</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -13,8 +13,12 @@
         
         #game-board { 
             position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; 
-            background-color: #222; background-size: cover; background-position: center; 
-            background-repeat: no-repeat; overflow: hidden; cursor: crosshair; touch-action: none; z-index: 1;
+            background-color: #222; overflow: hidden; cursor: crosshair; touch-action: none; z-index: 1;
+        }
+
+        /* NEW: Permanent Canvas Layer */
+        #bg-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;
         }
 
         .header-container { 
@@ -30,8 +34,8 @@
         #target { 
             position: absolute; display: none; top: 0; left: 0;
             box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 5; 
-            will-change: transform; /* GPU Acceleration */
-            pointer-events: none; /* Touches pass through to the mathematical board listener */
+            will-change: transform; 
+            pointer-events: none; 
         }
 
         #portrait-lock {
@@ -78,7 +82,6 @@
         #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
         @media (orientation: portrait) { #rotate-hint { display: block; } }
 
-        /* Debug styling */
         .debug-mode #target { box-shadow: 0 0 0 2px red inset !important; }
     </style>
 </head>
@@ -100,6 +103,8 @@
     </div>
 
     <div id="game-board">
+        <!-- Reusable permanent canvas to stop late-game lag spikes -->
+        <canvas id="bg-canvas"></canvas>
         <div id="target"></div>
     </div>
 
@@ -184,13 +189,14 @@
             lastFrameTime: 0,
             targetW: 0,
             targetH: 0,
-            historyBuffer: [], // The anti-lag time machine
+            historyBuffer: [],
             animationFrameId: null,
             lastMissTime: 0
         };
 
         // --- DOM ELEMENTS ---
         const board = document.getElementById('game-board');
+        const bgCanvas = document.getElementById('bg-canvas');
         const target = document.getElementById('target');
         const introScreen = document.getElementById('intro-screen');
         const readyScreen = document.getElementById('ready-screen');
@@ -244,6 +250,9 @@
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
             const height = canvas.height;
+            
+            // Clear the permanent canvas instead of recreating it
+            ctx.clearRect(0, 0, width, height);
 
             const paletteSize = 4;
             const palette = [];
@@ -390,15 +399,17 @@
                 empSpatial: 0, empLum: 0, empColor: 0
             };
 
-            const bgCanvas = document.createElement('canvas');
-            bgCanvas.width = board.clientWidth; bgCanvas.height = board.clientHeight;
+            // Setup persistent canvas dimensions
+            bgCanvas.width = board.clientWidth; 
+            bgCanvas.height = board.clientHeight;
+            
+            // Draw directly to the persistent canvas instead of toDataURL
             const bgData = generateBackground(bgCanvas, currentTrialMetrics);
             
             currentTrialMetrics.empSpatial = bgData.empiricalSpatialFreq;
             currentTrialMetrics.empLum = bgData.empiricalLumSD;
             currentTrialMetrics.empColor = bgData.empiricalColorSD;
             
-            board.style.backgroundImage = `url(${bgCanvas.toDataURL()})`;
             target.style.backgroundColor = `rgb(${bgData.preyColor[0]}, ${bgData.preyColor[1]}, ${bgData.preyColor[2]})`;
         }
 
@@ -467,7 +478,7 @@
             const boardWidth = board.clientWidth;
             const boardHeight = board.clientHeight;
             
-            // Set Target Geometry (Height is standard, Width is 3.5x longer)
+            // Set Target Geometry
             state.targetH = Math.max(boardHeight * (60 / 600), 45);
             state.targetW = state.targetH * 3.5; 
             
@@ -485,7 +496,7 @@
             state.posX = direction === 1 ? -state.targetW : boardWidth + state.targetW;
             state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             state.velocityX = currentSpeedPPS * direction;
-            state.historyBuffer = []; // Clear the anti-lag memory
+            state.historyBuffer = []; 
             
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
@@ -532,7 +543,7 @@
 
             // Log mathematical truth into history buffer for anti-lag hit detection
             state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
-            if (state.historyBuffer.length > 30) state.historyBuffer.shift(); // Keep last ~500ms
+            if (state.historyBuffer.length > 30) state.historyBuffer.shift(); 
         }
 
         function render() {
@@ -565,7 +576,7 @@
 
             if (!closestFrame) return;
 
-            // 2. Strict Hitbox Math (Zero invisible margins)
+            // 2. Strict Hitbox Math
             const hitLeft = closestFrame.x;
             const hitRight = closestFrame.x + state.targetW;
             const hitTop = closestFrame.y;
