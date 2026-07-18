@@ -158,7 +158,7 @@
     <script>
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 25;
+        const SPEED_MULTIPLIER = 20;
         const DIFFICULTY_MODE = "Hard";
 
         // --- EXPERIMENT DESIGN ---
@@ -474,7 +474,7 @@
             const boardWidth = board.clientWidth;
             const boardHeight = board.clientHeight;
             
-            // Set Target Geometry
+            // IF YOU WANT TO SHRINK THE RECTANGLE, CHANGE THE 3.5 MULTIPLIER BELOW
             state.targetH = Math.max(boardHeight * (60 / 600), 45);
             state.targetW = state.targetH * 3.5; 
             
@@ -488,7 +488,7 @@
             const currentSpeedPPS = (SPEED_MULTIPLIER * 60) * (boardWidth / 800);
             const direction = Math.random() < 0.5 ? 1 : -1;
             
-            // Initial Physics State: Start exactly in the horizontal center of the screen
+            // Initial Physics State
             state.posX = (boardWidth / 2) - (state.targetW / 2);
             state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             state.velocityX = currentSpeedPPS * direction;
@@ -496,7 +496,6 @@
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
 
-            // Unified Timeline Setup
             const unifiedTime = performance.now();
             state.lastFrameTime = unifiedTime;
             state.startTime = unifiedTime;
@@ -510,7 +509,6 @@
         function gameLoop(timestamp) { 
             if (!state.active) return;
             
-            // Fixed loop syntax using the system frame timestamp natively
             let dt = (timestamp - state.lastFrameTime) / 1000;
             if (dt > 0.1) dt = 0.1; 
             state.lastFrameTime = timestamp;
@@ -529,14 +527,21 @@
             const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
             const safeMarginY = (window.innerHeight - state.targetH - currentHeaderHeight) * 0.1;
 
-            // Screen wrap logic - always respawn in the midline
-            if (state.velocityX > 0 && state.posX > boardWidth) {
+            // --- THE NEW MIDLINE RESPAWN LOGIC ---
+            // If the target completely leaves the screen on either side:
+            if (state.posX > boardWidth || state.posX < -state.targetW) {
+                
+                // 1. Respawn in the exact midline
                 state.posX = (boardWidth / 2) - (state.targetW / 2);
                 state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
-            } 
-            else if (state.velocityX < 0 && state.posX < -state.targetW) {
-                state.posX = (boardWidth / 2) - (state.targetW / 2);
-                state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
+                
+                // 2. Randomly pick Left or Right for the new run (No mid-air jukes)
+                const currentSpeed = Math.abs(state.velocityX);
+                const newDirection = Math.random() < 0.5 ? 1 : -1;
+                state.velocityX = currentSpeed * newDirection;
+                
+                // 3. Clear the history buffer so we don't register ghost hits during the teleport
+                state.historyBuffer = []; 
             }
 
             // Log mathematical truth into history buffer for anti-lag hit detection
@@ -564,6 +569,8 @@
 
             const tapX = e.clientX;
             const tapY = e.clientY;
+
+            if (state.historyBuffer.length === 0) return; // Failsafe
 
             let closestFrame = state.historyBuffer[0];
             let smallestTimeDifference = Infinity;
