@@ -3,20 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - Midline Optimized</title>
+    <title>Catch the Target - Final Fixed</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
             font-family: sans-serif; text-align: center; background-color: #000; color: #fff; margin: 0; padding: 0; 
-            width: 100vw; height: 100dvh; overflow: hidden; 
+            width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; 
         }
         
         #game-board { 
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; 
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; height: 100dvh; 
             background-color: #222; overflow: hidden; cursor: crosshair; touch-action: none; z-index: 1;
         }
 
-        /* Permanent Canvas Layer */
         #bg-canvas {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;
         }
@@ -34,8 +33,7 @@
         #target { 
             position: absolute; display: none; top: 0; left: 0;
             box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 5; 
-            will-change: transform; 
-            pointer-events: none; 
+            will-change: transform; pointer-events: none; 
         }
 
         #portrait-lock {
@@ -434,664 +432,10 @@
             try { systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No"; } 
             catch(e) { systemDetectedRepeat = "Unknown"; }
             
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
-            }
-
-            trialPlaylist = [];
-            conditionsList.forEach(cond => {
-                for(let i=0; i<TRIALS_PER_CONDITION; i++) trialPlaylist.push(cond);
-            });
-            trialPlaylist = shuffleArray(trialPlaylist);
-            
-            document.getElementById('trial-counter-display').innerText = `0 / ${MAX_TRIALS}`;
-            introScreen.style.display = 'none'; 
-            readyScreen.style.display = 'flex';
-        });
-
-        document.getElementById('begin-first-trial-btn').addEventListener('click', () => {
-            const btn = document.getElementById('begin-first-trial-btn');
-            btn.disabled = true;
-            let cd = 3; btn.innerText = `Starting in ${cd}...`;
-            const cdTimer = setInterval(() => {
-                cd--;
-                if (cd > 0) btn.innerText = `Starting in ${cd}...`;
-                else { clearInterval(cdTimer); readyScreen.style.display = 'none'; startTrial(); }
-            }, 1000);
-        });
-
-        // --- GAME ENGINE ---
-        function startTrial() {
-            trialCounter++; 
-            document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
-            trialScreen.style.display = 'none'; 
-            
-            state.misses = 0; 
-            document.getElementById('miss-display').innerText = state.misses;
-            
-            setupTrialBackground();
-            
-            const boardWidth = board.clientWidth;
-            const boardHeight = board.clientHeight;
-            
-            // Set Target Geometry
-            state.targetH = Math.max(boardHeight * (60 / 600), 45);
-            state.targetW = state.targetH * 1.5; 
-            
-            target.style.width = `${state.targetW}px`; 
-            target.style.height = `${state.targetH}px`; 
-            
-            const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
-            const currentMaxY = boardHeight - state.targetH;
-            const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
-            
-            const currentSpeedPPS = (SPEED_MULTIPLIER * 60) * (boardWidth / 800);
-            const direction = Math.random() < 0.5 ? 1 : -1;
-            
-            // Initial Physics State: Start exactly in the horizontal center of the screen
-            state.posX = (boardWidth / 2) - (state.targetW / 2);
-            state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
-            
-            state.velocityX = currentSpeedPPS * direction;
-            state.historyBuffer = []; 
-            
-            target.style.display = 'block'; 
-            target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
-
-            state.lastFrameTime = performance.now();
-            state.startTime = performance.now();
-            state.active = true;
-
-            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
-            state.animationFrameId = requestAnimationFrame(gameLoop);
-        }
-
-        function gameLoop(timestamp) {
-            if (!state.active) return;
-            
-            let dt = (timestamp - state.lastFrameTime) / 1000;
-            // Prevent massive jumps if browser lags heavily
-            if (dt > 0.1) dt = 0.1; 
-            state.lastFrameTime = timestamp;
-
-            updatePhysics(dt, timestamp);
-            render();
-            
-            document.getElementById('live-time-display').innerText = ((timestamp - state.startTime) / 1000).toFixed(2);
-            state.animationFrameId = requestAnimationFrame(gameLoop);
-        }
-
-        function updatePhysics(dt, timestamp) {
-            state.posX += state.velocityX * dt;
-            
-            const boardWidth = window.innerWidth;
-            const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
-            const safeMarginY = (window.innerHeight - state.targetH - currentHeaderHeight) * 0.1;
-
-            // Screen wrap logic - always respawn in the midline
-            if (state.velocityX > 0 && state.posX > boardWidth) {
-                state.posX = (boardWidth / 2) - (state.targetW / 2);
-                state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
-            } 
-            else if (state.velocityX < 0 && state.posX < -state.targetW) {
-                state.posX = (boardWidth / 2) - (state.targetW / 2);
-                state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
-            }
-
-            // Log mathematical truth into history buffer for anti-lag hit detection
-            state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
-            if (state.historyBuffer.length > 30) state.historyBuffer.shift(); 
-        }
-
-        function render() {
-            target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
-        }
-
-        // --- STRICT, LAG-COMPENSATED HIT DETECTION ---
-        board.addEventListener('pointerdown', (e) => {
-            if (!state.active) return;
-            if (e.cancelable) e.preventDefault(); 
-            
-            const tapTime = performance.now();
-            // Blind spot to prevent mis-clicks immediately upon spawn
-            if (tapTime - state.startTime < 50) return; 
-
-            const tapX = e.clientX;
-            const tapY = e.clientY;
-
-            // 1. Find the historical frame closest to the actual physical tap time
-            let closestFrame = state.historyBuffer[0];
-            let smallestTimeDifference = Infinity;
-
-            for (const frame of state.historyBuffer) {
-                const timeDifference = Math.abs(frame.time - tapTime);
-                if (timeDifference < smallestTimeDifference) {
-                    smallestTimeDifference = timeDifference;
-                    closestFrame = frame;
-                }
-            }
-
-            if (!closestFrame) return;
-
-            // 2. Strict Hitbox Math
-            const hitLeft = closestFrame.x;
-            const hitRight = closestFrame.x + state.targetW;
-            const hitTop = closestFrame.y;
-            const hitBottom = closestFrame.y + state.targetH;
-
-            // 3. Verification
-            if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
-                handleHit(tapTime);
-            } else {
-                handleMiss(tapTime);
-            }
-        });
-
-        function handleHit(tapTime) {
-            state.active = false; 
-            cancelAnimationFrame(state.animationFrameId); 
-            
-            // Calculate reaction using physical tap time, not event firing time
-            const reactionTime = parseFloat(((tapTime - state.startTime) / 1000).toFixed(3)); 
-            
-            const sw = window.innerWidth, sh = window.innerHeight;
-            
-            sessionData.push([
-                participantId, deviceType, DIFFICULTY_MODE, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, state.misses,
-                parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
-                parseFloat(currentTrialMetrics.lumContrast.toFixed(2)), parseFloat(currentTrialMetrics.empLum.toFixed(2)),
-                parseFloat(currentTrialMetrics.colorClutter.toFixed(2)), parseFloat(currentTrialMetrics.empColor.toFixed(2)),
-                currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
-            ]);
-            
-            target.style.display = 'none'; 
-            
-            if (trialCounter >= MAX_TRIALS) endScreen.style.display = 'flex';
-            else {
-                document.getElementById('trial-time').innerText = reactionTime; 
-                trialScreen.style.display = 'flex'; 
-                
-                const nextTrialBtn = document.getElementById('next-trial-btn');
-                nextTrialBtn.disabled = true; 
-                let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                const cdTimer = setInterval(() => {
-                    cd--;
-                    if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                    else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
-                }, 1000);
-            }
-        }
-
-        function handleMiss(tapTime) {
-            if (tapTime - state.lastMissTime > 150) {
-                state.lastMissTime = tapTime; 
-                state.misses++; 
-                document.getElementById('miss-display').innerText = state.misses;
-            }
-        }
-
-        document.getElementById('next-trial-btn').addEventListener('click', startTrial);
-
-        // --- DATA UPLOAD ---
-        const finishSessionBtn = document.getElementById('finish-session-btn');
-        const uploadStatus = document.getElementById('upload-status');
-
-        finishSessionBtn.addEventListener('click', () => {
-            finishSessionBtn.disabled = true; 
-            try { localStorage.setItem('hasPlayedCatchTheCircle', 'true'); } catch(e) { }
-            
-            uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
-            
-            fetch("https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec", {
-                method: 'POST', mode: 'no-cors', body: JSON.stringify(sessionData), headers: { 'Content-Type': 'text/plain;charset=utf-8' }
-            }).then(() => {
-                uploadStatus.innerText = "Upload Complete!"; uploadStatus.style.color = "#2ecc71"; 
-                if (document.fullscreenElement) document.exitFullscreen();
-            }).catch(e => {
-                uploadStatus.innerText = "Error uploading data."; uploadStatus.style.color = "#e74c3c"; finishSessionBtn.disabled = false;
-            });
-        });
-    </script>
-</body>
-</html>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - Midline Optimized</title>
-    <style>
-        /* MOBILE LOCKDOWN CSS */
-        body { 
-            font-family: sans-serif; text-align: center; background-color: #000; color: #fff; margin: 0; padding: 0; 
-            width: 100vw; height: 100dvh; overflow: hidden; 
-        }
-        
-        #game-board { 
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; 
-            background-color: #222; overflow: hidden; cursor: crosshair; touch-action: none; z-index: 1;
-        }
-
-        /* Permanent Canvas Layer */
-        #bg-canvas {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none;
-        }
-
-        .header-container { 
-            position: fixed; top: 0; left: 0; width: 100%; 
-            background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); 
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 20px; box-sizing: border-box; z-index: 10; pointer-events: none;
-        }
-        
-        h1 { font-size: 1.2rem; margin: 0; text-align: left; text-transform: uppercase; letter-spacing: 1px;}
-        .stats { display: flex; gap: 20px; font-size: 1.1rem; margin: 0; }
-        
-        #target { 
-            position: absolute; display: none; top: 0; left: 0;
-            box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 5; 
-            will-change: transform; 
-            pointer-events: none; 
-        }
-
-        #portrait-lock {
-            display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #c0392b; color: white; z-index: 10000;
-            flex-direction: column; justify-content: center; align-items: center;
-            font-size: 1.5rem; font-weight: bold; padding: 20px; text-align: center;
-        }
-        @media (orientation: portrait) { #portrait-lock { display: flex; } }
-        
-        .overlay-screen { 
-            position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-            background-color: rgba(0, 0, 0, 0.95); z-index: 100; 
-            overflow-y: auto; display: flex; flex-direction: column; 
-            align-items: center; justify-content: flex-start; padding: 20px 15px; 
-        }
-        
-        .overlay-screen h2 { margin-top: 0; color: #4CAF50; font-size: 1.6rem; margin-bottom: 10px; }
-        #trial-screen, #end-screen, #ready-screen { display: none; justify-content: center; } 
-        
-        .instructions-box {
-            max-width: 600px; background-color: rgba(255, 255, 255, 0.1);
-            padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.3; font-size: 1rem;
-        }
-        .instructions-box p { margin: 5px 0; } 
-        
-        .form-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; width: 100%; max-width: 700px; flex-wrap: wrap;}
-        .control-group { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 160px;}
-        .control-group label { margin-bottom: 3px; font-weight: bold; font-size: 0.9rem;}
-        input[type="text"], select { padding: 8px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; width: 90%; transition: 0.2s; }
-        
-        .input-error { border: 2px solid #e74c3c !important; background-color: #fadbd8 !important; }
-
-        .checkbox-group { margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; cursor: pointer; width: 100%; }
-        .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
-        
-        button { padding: 10px 20px; font-size: 1.1rem; font-weight: bold; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 5px; margin: 10px; transition: 0.2s; flex-shrink: 0;}
-        button:hover { background-color: #45a049; }
-        button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
-        .danger-btn { background-color: #3498db; }
-        .danger-btn:hover { background-color: #2980b9; }
-        
-        #upload-status { margin-top: 15px; font-weight: bold; color: #f1c40f; display: none; }
-        #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
-        @media (orientation: portrait) { #rotate-hint { display: block; } }
-
-        .debug-mode #target { box-shadow: 0 0 0 2px red inset !important; }
-    </style>
-</head>
-<body>
-
-    <div id="portrait-lock">
-        <span style="font-size: 3rem; margin-bottom: 20px;">🔄</span>
-        Please rotate your device to landscape mode to play.
-    </div>
-
-    <div class="header-container">
-        <h1>Catch the Target</h1>
-        <div id="rotate-hint">📱 Rotate to Landscape</div>
-        <div class="stats">
-            <div>Trial: <strong id="trial-counter-display">0 / 16</strong></div>
-            <div>Time: <strong id="live-time-display">0.00</strong> s</div>
-            <div>Misses: <strong id="miss-display">0</strong></div>
-        </div>
-    </div>
-
-    <div id="game-board">
-        <canvas id="bg-canvas"></canvas>
-        <div id="target"></div>
-    </div>
-
-    <div id="intro-screen" class="overlay-screen">
-        <h2>Catch the Target</h2>
-        <div class="instructions-box">
-            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged moving target as fast as you can.</p>
-            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Landscape mode is strictly required.</p>
-        </div>
-        <label class="checkbox-group">
-            <input type="checkbox" id="colorblind-check"> I have a color vision deficiency
-        </label>
-        <div class="form-row">
-            <div class="control-group">
-                <label>Gamer Name</label>
-                <input type="text" id="participant-id" placeholder="e.g., player1" autocomplete="off">
-            </div>
-            <div class="control-group">
-                <label>Device Type</label>
-                <select id="device-select">
-                    <option value="Laptop/Desktop" selected>Laptop / Desktop</option>
-                    <option value="Tablet">Tablet</option>
-                    <option value="Smartphone">Smartphone</option>
-                </select>
-            </div>
-            <div class="control-group">
-                <label>Have you played before?</label>
-                <select id="repeat-select">
-                    <option value="No" selected>No, first time</option>
-                    <option value="Yes">Yes, I have</option>
-                </select>
-            </div>
-        </div>
-        <button id="start-session-btn">Start Experiment</button>
-    </div>
-
-    <div id="ready-screen" class="overlay-screen">
-        <h2>Setup Complete</h2>
-        <button id="begin-first-trial-btn">Start Trial 1</button>
-    </div>
-
-    <div id="trial-screen" class="overlay-screen">
-        <h2>Target Caught!</h2>
-        <p>Reaction Time: <strong id="trial-time">0.00</strong> seconds</p>
-        <button id="next-trial-btn">Start Next Trial</button>
-    </div>
-
-    <div id="end-screen" class="overlay-screen">
-        <h2>Experiment Complete</h2>
-        <button id="finish-session-btn" class="danger-btn">Finish Session & Upload Data</button>
-        <div id="upload-status">Uploading data to Google Sheets...</div>
-    </div>
-
-    <script>
-        // --- CONFIGURATION ---
-        const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 25;
-        const DIFFICULTY_MODE = "Hard";
-
-        // --- EXPERIMENT DESIGN ---
-        const conditionsList = ['Hue_Only', 'Luminance_Only', 'Hue_And_Luminance', 'Control'];
-        const TRIALS_PER_CONDITION = 4; 
-        const MAX_TRIALS = conditionsList.length * TRIALS_PER_CONDITION; 
-        
-        let trialPlaylist = [];
-        let sessionData = []; 
-        let currentTrialMetrics = {}; 
-
-        // --- TRACKING VARIABLES ---
-        let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
-        let selfReportedRepeat = "No", systemDetectedRepeat = "No";
-        let trialCounter = 0;
-
-        // --- ENGINE STATE ---
-        const state = {
-            active: false,
-            startTime: 0,
-            misses: 0,
-            posX: 0,
-            posY: 0,
-            velocityX: 0,
-            lastFrameTime: 0,
-            targetW: 0,
-            targetH: 0,
-            historyBuffer: [],
-            animationFrameId: null,
-            lastMissTime: 0
-        };
-
-        // --- DOM ELEMENTS ---
-        const board = document.getElementById('game-board');
-        const bgCanvas = document.getElementById('bg-canvas');
-        const target = document.getElementById('target');
-        const introScreen = document.getElementById('intro-screen');
-        const readyScreen = document.getElementById('ready-screen');
-        const trialScreen = document.getElementById('trial-screen');
-        const endScreen = document.getElementById('end-screen');
-
-        if (DEBUG_MODE) document.body.classList.add('debug-mode');
-
-        // --- FISHER-YATES SHUFFLE ---
-        function shuffleArray(array) {
-            let currentIndex = array.length, randomIndex;
-            while (currentIndex !== 0) {
-                randomIndex = Math.floor(Math.random() * currentIndex);
-                currentIndex--;
-                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
-            }
-            return array;
-        }
-
-        // --- CIELAB <-> sRGB MATH ---
-        function labToRgb(l, a, b) {
-            let y = (l + 16) / 116, x = a / 500 + y, z = y - b / 200, r, g, b_out;
-            x = 0.95047 * ((x * x * x > 0.008856) ? x * x * x : (x - 16/116) / 7.787);
-            y = 1.00000 * ((y * y * y > 0.008856) ? y * y * y : (y - 16/116) / 7.787);
-            z = 1.08883 * ((z * z * z > 0.008856) ? z * z * z : (z - 16/116) / 7.787);
-            r = x * 3.2406 + y * -1.5372 + z * -0.4986;
-            g = x * -0.9689 + y * 1.8758 + z * 0.0415;
-            b_out = x * 0.0557 + y * -0.2040 + z * 1.0570;
-            r = (r > 0.0031308) ? (1.055 * Math.pow(r, 1/2.4) - 0.055) : 12.92 * r;
-            g = (g > 0.0031308) ? (1.055 * Math.pow(g, 1/2.4) - 0.055) : 12.92 * g;
-            b_out = (b_out > 0.0031308) ? (1.055 * Math.pow(b_out, 1/2.4) - 0.055) : 12.92 * b_out;
-            return [Math.max(0, Math.min(1, r)) * 255, Math.max(0, Math.min(1, g)) * 255, Math.max(0, Math.min(1, b_out)) * 255];
-        }
-
-        function rgbToLab(r, g, b) {
-            let r_n = r / 255, g_n = g / 255, b_n = b / 255;
-            r_n = (r_n > 0.04045) ? Math.pow((r_n + 0.055) / 1.055, 2.4) : r_n / 12.92;
-            g_n = (g_n > 0.04045) ? Math.pow((g_n + 0.055) / 1.055, 2.4) : g_n / 12.92;
-            b_n = (b_n > 0.04045) ? Math.pow((b_n + 0.055) / 1.055, 2.4) : b_n / 12.92;
-            let x = (r_n * 0.4124 + g_n * 0.3576 + b_n * 0.1805) / 0.95047;
-            let y = (r_n * 0.2126 + g_n * 0.7152 + b_n * 0.0722) / 1.00000;
-            let z = (r_n * 0.0193 + g_n * 0.1192 + b_n * 0.9505) / 1.08883;
-            x = (x > 0.008856) ? Math.pow(x, 1/3) : (7.787 * x) + 16/116;
-            y = (y > 0.008856) ? Math.pow(y, 1/3) : (7.787 * y) + 16/116;
-            z = (z > 0.008856) ? Math.pow(z, 1/3) : (7.787 * z) + 16/116;
-            return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
-        }
-
-        // --- DYNAMIC BACKGROUND GENERATOR ---
-        function generateBackground(canvas, metrics) {
-            const ctx = canvas.getContext('2d', { willReadFrequently: true });
-            const width = canvas.width;
-            const height = canvas.height;
-            
-            ctx.clearRect(0, 0, width, height);
-
-            const paletteSize = 4;
-            const palette = [];
-            const minDiff = 15; 
-
-            function getSpacedValues(minBound, maxBound) {
-                const requiredSpan = minDiff * 3; 
-                const start = minBound + Math.random() * (maxBound - minBound - requiredSpan);
-                return [
-                    start, 
-                    start + minDiff + (Math.random() * 3),       
-                    start + (minDiff * 2) + (Math.random() * 3), 
-                    start + (minDiff * 3) + (Math.random() * 3)  
-                ];
-            }
-
-            let lValues = [], aValues = [];
-
-            if (metrics.condition === 'Control') {
-                lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
-                aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
-            } else if (metrics.condition === 'Luminance_Only') {
-                lValues = getSpacedValues(10, 90); 
-                aValues = [metrics.baseA, metrics.baseA, metrics.baseA, metrics.baseA];
-            } else if (metrics.condition === 'Hue_Only') {
-                lValues = [metrics.baseL, metrics.baseL, metrics.baseL, metrics.baseL];
-                aValues = getSpacedValues(-30, 40); 
-            } else if (metrics.condition === 'Hue_And_Luminance') {
-                lValues = getSpacedValues(10, 90);
-                aValues = getSpacedValues(-30, 40);
-                for (let i = aValues.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [aValues[i], aValues[j]] = [aValues[j], aValues[i]];
-                }
-            }
-
-            for(let i = 0; i < paletteSize; i++) {
-                palette.push(labToRgb(lValues[i], aValues[i], metrics.baseB)); 
-            }
-
-            ctx.fillStyle = `rgb(${palette[0][0]}, ${palette[0][1]}, ${palette[0][2]})`;
-            ctx.fillRect(0, 0, width, height);
-
-            const shapeCount = Math.floor(metrics.spatialFreq * 12000) + 150;
-            const maxShapeSize = (width + height) / (metrics.spatialFreq * 80 + 5);
-
-            for (let i = 0; i < shapeCount; i++) {
-                const radius = (Math.random() * maxShapeSize + 20) / 2;
-                const cx = Math.random() * (width + radius * 2) - radius;
-                const cy = Math.random() * (height + radius * 2) - radius;
-                const color = palette[Math.floor(Math.random() * palette.length)];
-                
-                ctx.fillStyle = `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
-                ctx.beginPath();
-                
-                const shapeType = Math.random();
-                if (shapeType < 0.35) {
-                    const radiusY = radius * (0.4 + Math.random() * 0.6);
-                    const rotation = Math.random() * Math.PI * 2;
-                    ctx.ellipse(cx, cy, radius, radiusY, rotation, 0, 2 * Math.PI);
-                } else {
-                    const vertices = Math.floor(Math.random() * 6) + 3; 
-                    for (let j = 0; j < vertices; j++) {
-                        const baseAngle = (j / vertices) * (2 * Math.PI);
-                        const angle = baseAngle + (Math.random() * 0.4 - 0.2);
-                        const r = radius * (0.3 + Math.random() * 0.7);
-                        const px = cx + r * Math.cos(angle);
-                        const py = cy + r * Math.sin(angle);
-                        if (j === 0) ctx.moveTo(px, py);
-                        else ctx.lineTo(px, py);
-                    }
-                }
-                ctx.closePath();
-                ctx.fill();
-            }
-
-            const imgData = ctx.getImageData(0, 0, width, height).data;
-            const sampleStep = 8; 
-            
-            let sumR = 0, sumG = 0, sumB = 0;
-            let empLValues = [], empAValues = [], empBValues = [], edgeMagnitudes = [];
-            
-            for (let y = 0; y < height - sampleStep; y += sampleStep) {
-                for (let x = 0; x < width - sampleStep; x += sampleStep) {
-                    const idx = (y * width + x) * 4;
-                    const r = imgData[idx], g = imgData[idx+1], b = imgData[idx+2];
-                    
-                    sumR += r; sumG += g; sumB += b;
-                    
-                    const lab = rgbToLab(r, g, b);
-                    empLValues.push(lab[0]);
-                    empAValues.push(lab[1]);
-                    empBValues.push(lab[2]);
-
-                    const rightIdx = (y * width + (x + sampleStep)) * 4;
-                    const bottomIdx = ((y + sampleStep) * width + x) * 4;
-                    
-                    const currentLum = 0.299 * r + 0.587 * g + 0.114 * b;
-                    const rightLum = 0.299 * imgData[rightIdx] + 0.587 * imgData[rightIdx+1] + 0.114 * imgData[rightIdx+2];
-                    const bottomLum = 0.299 * imgData[bottomIdx] + 0.587 * imgData[bottomIdx+1] + 0.114 * imgData[bottomIdx+2];
-                    
-                    edgeMagnitudes.push(Math.abs(currentLum - rightLum) + Math.abs(currentLum - bottomLum));
-                }
-            }
-            
-            const sampleSize = empLValues.length;
-            const meanL = empLValues.reduce((a, b) => a + b, 0) / sampleSize;
-            const meanA = empAValues.reduce((a, b) => a + b, 0) / sampleSize;
-            const meanB = empBValues.reduce((a, b) => a + b, 0) / sampleSize;
-            const meanEdge = edgeMagnitudes.reduce((a, b) => a + b, 0) / sampleSize;
-
-            let varL = 0, varA = 0, varB = 0;
-            for(let i=0; i<sampleSize; i++) {
-                varL += Math.pow(empLValues[i] - meanL, 2);
-                varA += Math.pow(empAValues[i] - meanA, 2);
-                varB += Math.pow(empBValues[i] - meanB, 2);
-            }
-            
-            const empiricalLumSD = Math.sqrt(varL / sampleSize);
-            const empiricalColorSD = Math.sqrt((varA + varB) / sampleSize); 
-
-            return {
-                preyColor: [Math.round(sumR/sampleSize), Math.round(sumG/sampleSize), Math.round(sumB/sampleSize)],
-                empiricalLumSD: empiricalLumSD,
-                empiricalColorSD: empiricalColorSD,
-                empiricalSpatialFreq: meanEdge 
-            };
-        }
-
-        function setupTrialBackground() {
-            const currentCondition = trialPlaylist[trialCounter - 1]; 
-            const randomFreq = 0.01 + (Math.random() * 0.08); 
-            const randomBaseA = -30 + (Math.random() * 60); 
-            const randomBaseB = 50; 
-            
-            let lumVariance = 0, colorVariance = 0;
-            if (currentCondition === "Hue_Only") colorVariance = 20; 
-            else if (currentCondition === "Luminance_Only") lumVariance = 20;
-            else if (currentCondition === "Hue_And_Luminance") { lumVariance = 20; colorVariance = 20; }
-
-            currentTrialMetrics = {
-                spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
-                condition: currentCondition, baseL: 50, baseA: randomBaseA, baseB: randomBaseB,
-                empSpatial: 0, empLum: 0, empColor: 0
-            };
-
-            bgCanvas.width = board.clientWidth; 
-            bgCanvas.height = board.clientHeight;
-            
-            const bgData = generateBackground(bgCanvas, currentTrialMetrics);
-            
-            currentTrialMetrics.empSpatial = bgData.empiricalSpatialFreq;
-            currentTrialMetrics.empLum = bgData.empiricalLumSD;
-            currentTrialMetrics.empColor = bgData.empiricalColorSD;
-            
-            target.style.backgroundColor = `rgb(${bgData.preyColor[0]}, ${bgData.preyColor[1]}, ${bgData.preyColor[2]})`;
-        }
-
-        // --- SESSION INITIALIZATION ---
-        document.getElementById('start-session-btn').addEventListener('click', () => {
-            if (window.innerHeight > window.innerWidth) { 
-                alert("Please resize your window or rotate your device to Landscape Mode before starting."); 
-                return; 
-            }
-            
-            const inputField = document.getElementById('participant-id');
-            const enteredId = inputField.value.trim();
-            if (enteredId === "") { 
-                inputField.classList.add('input-error');
-                inputField.placeholder = "Required: Enter a name!";
-                inputField.focus();
-                return; 
-            }
-            inputField.classList.remove('input-error');
-            
-            participantId = enteredId; 
-            isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
-            deviceType = document.getElementById('device-select').value;
-            selfReportedRepeat = document.getElementById('repeat-select').value;
-            
-            try { systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No"; } 
-            catch(e) { systemDetectedRepeat = "Unknown"; }
-            
-            if (document.documentElement.requestFullscreen) {
-                document.documentElement.requestFullscreen().catch(err => console.log("Fullscreen ignored"));
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                const req = elem.requestFullscreen();
+                if (req !== undefined) req.catch(err => console.log("Fullscreen ignored"));
             }
 
             trialPlaylist = [];
@@ -1147,26 +491,27 @@
             // Initial Physics State: Start exactly in the horizontal center of the screen
             state.posX = (boardWidth / 2) - (state.targetW / 2);
             state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
-            
             state.velocityX = currentSpeedPPS * direction;
-            state.historyBuffer = []; 
             
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
 
-            state.lastFrameTime = performance.now();
-            state.startTime = performance.now();
+            // Unified Timeline Setup
+            const unifiedTime = performance.now();
+            state.lastFrameTime = unifiedTime;
+            state.startTime = unifiedTime;
+            state.historyBuffer = []; 
             state.active = true;
 
             if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
             state.animationFrameId = requestAnimationFrame(gameLoop);
         }
 
-        function gameLoop(timestamp) {
+        function gameLoop(timestamp) { 
             if (!state.active) return;
             
+            // Fixed loop syntax using the system frame timestamp natively
             let dt = (timestamp - state.lastFrameTime) / 1000;
-            // Prevent massive jumps if browser lags heavily
             if (dt > 0.1) dt = 0.1; 
             state.lastFrameTime = timestamp;
 
@@ -1208,14 +553,18 @@
             if (!state.active) return;
             if (e.cancelable) e.preventDefault(); 
             
-            const tapTime = e.timeStamp;
-            // Blind spot to prevent mis-clicks immediately upon spawn
+            let tapTime = e.timeStamp;
+            
+            // MOBILE EPOCH NORMALIZATION
+            if (tapTime > 1e12) {
+                tapTime = performance.now() - (Date.now() - e.timeStamp);
+            }
+
             if (tapTime - state.startTime < 50) return; 
 
             const tapX = e.clientX;
             const tapY = e.clientY;
 
-            // 1. Find the historical frame closest to the actual physical tap time
             let closestFrame = state.historyBuffer[0];
             let smallestTimeDifference = Infinity;
 
@@ -1229,13 +578,11 @@
 
             if (!closestFrame) return;
 
-            // 2. Strict Hitbox Math
             const hitLeft = closestFrame.x;
             const hitRight = closestFrame.x + state.targetW;
             const hitTop = closestFrame.y;
             const hitBottom = closestFrame.y + state.targetH;
 
-            // 3. Verification
             if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
                 handleHit(tapTime);
             } else {
@@ -1247,9 +594,7 @@
             state.active = false; 
             cancelAnimationFrame(state.animationFrameId); 
             
-            // Calculate reaction using physical tap time, not event firing time
             const reactionTime = parseFloat(((tapTime - state.startTime) / 1000).toFixed(3)); 
-            
             const sw = window.innerWidth, sh = window.innerHeight;
             
             sessionData.push([
