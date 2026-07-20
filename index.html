@@ -565,7 +565,7 @@
                 tapTime = performance.now() - (Date.now() - e.timeStamp);
             }
             
-            tapTime = tapTime-30;
+            tapTime = tapTime-0;
             
             if (tapTime - state.startTime < 50) return; 
 
@@ -633,11 +633,9 @@
         }
 
         function handleMiss(tapTime) {
-            if (tapTime - state.lastMissTime > 150) {
                 state.lastMissTime = tapTime; 
                 state.misses++; 
                 document.getElementById('miss-display').innerText = state.misses;
-            }
         }
 
         document.getElementById('next-trial-btn').addEventListener('click', startTrial);
