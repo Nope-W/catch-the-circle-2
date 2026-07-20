@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - Performance Optimized</title>
+    <title>Catch the Target - High Speed & Calibrated</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -158,7 +158,8 @@
     <script>
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 17; 
+        // INCREASED SPEED: Raised from 17 to 24 for higher difficulty
+        const SPEED_MULTIPLIER = 24; 
         const DIFFICULTY_MODE = "Hard";
 
         // --- EXPERIMENT DESIGN ---
@@ -493,8 +494,6 @@
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
 
-            // FIX: Force the browser to paint the heavy canvas to the screen 
-            // BEFORE starting the clocks and physics loop.
             requestAnimationFrame(() => {
                 requestAnimationFrame((timestamp) => {
                     state.lastFrameTime = timestamp;
@@ -541,22 +540,28 @@
                 state.historyBuffer = []; 
             }
 
+            // High precision buffer maintains 60 historical states (~1 sec @ 60fps)
             state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
-            if (state.historyBuffer.length > 30) state.historyBuffer.shift(); 
+            if (state.historyBuffer.length > 60) state.historyBuffer.shift(); 
         }
 
         function render() {
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
         }
 
-        // --- LINEAR INTERPOLATION (LERP) HIT DETECTION ---
+        // --- CALIBRATED HIGH-SPEED LERP HIT DETECTION ---
         board.addEventListener('pointerdown', (e) => {
             if (!state.active || state.historyBuffer.length < 2) return;
             if (e.cancelable) e.preventDefault(); 
             
-            // 1. Hardware time + Standard mobile screen latency (30ms)
             const tapTime = e.timeStamp || performance.now();
-            const visualTime = tapTime - 30; 
+            
+            // DYNAMIC DISPLAY LAG CORRECTION:
+            // High speeds make screen response time more noticeable.
+            // Scale lag offset dynamically relative to velocity to preserve accuracy.
+            const speedRatio = Math.abs(state.velocityX) / 800;
+            const visualLagMs = Math.min(30 + (speedRatio * 10), 50); 
+            const visualTime = tapTime - visualLagMs; 
             
             const tapX = e.clientX;
             const tapY = e.clientY;
@@ -564,7 +569,6 @@
             let targetXAtTap = state.historyBuffer[0].x;
             let targetYAtTap = state.historyBuffer[0].y;
 
-            // 2. Find the two exact frames that straddle the exact millisecond tapped
             let frameBefore = state.historyBuffer[0];
             let frameAfter = state.historyBuffer[state.historyBuffer.length - 1];
 
@@ -576,7 +580,7 @@
                 }
             }
 
-            // 3. Calculate exact sub-pixel position via Lerp
+            // Sub-pixel linear interpolation
             const timeGap = frameAfter.time - frameBefore.time;
             if (timeGap > 0) {
                 const progress = (visualTime - frameBefore.time) / timeGap;
@@ -584,7 +588,6 @@
                 targetYAtTap = frameBefore.y + (frameAfter.y - frameBefore.y) * progress;
             }
 
-            // 4. Strict, accurate experimental margins restored (15px)
             const margin = 15; 
             const hitLeft = targetXAtTap - margin;
             const hitRight = targetXAtTap + state.targetW + margin;
@@ -625,18 +628,42 @@
                 document.getElementById('trial-time').innerText = reactionTime; 
                 trialScreen.style.display = 'flex'; 
                 
+                // FIRST COUNTDOWN (Rest period before enabling button)
                 const nextTrialBtn = document.getElementById('next-trial-btn');
                 nextTrialBtn.disabled = true; 
-                let cd = 3; nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                let cd = 3; 
+                nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                
                 const cdTimer = setInterval(() => {
                     cd--;
-                    if (cd > 0) nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                    else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
+                    if (cd > 0) {
+                        nextTrialBtn.innerText = `Please wait (${cd}s)...`;
+                    } else { 
+                        clearInterval(cdTimer); 
+                        nextTrialBtn.disabled = false; 
+                        nextTrialBtn.innerText = "Start Next Trial"; 
+                    }
                 }, 1000);
             }
         }
 
-        document.getElementById('next-trial-btn').addEventListener('click', startTrial);
+        // SECOND COUNTDOWN (Preparation period after clicking Next Trial)
+        document.getElementById('next-trial-btn').addEventListener('click', () => {
+            const nextTrialBtn = document.getElementById('next-trial-btn');
+            nextTrialBtn.disabled = true;
+            let prepCd = 3;
+            nextTrialBtn.innerText = `Get Ready (${prepCd}s)...`;
+
+            const prepTimer = setInterval(() => {
+                prepCd--;
+                if (prepCd > 0) {
+                    nextTrialBtn.innerText = `Get Ready (${prepCd}s)...`;
+                } else {
+                    clearInterval(prepTimer);
+                    startTrial();
+                }
+            }, 1000);
+        });
 
         // --- DATA UPLOAD ---
         const finishSessionBtn = document.getElementById('finish-session-btn');
