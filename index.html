@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - Performance.now() Optimized</title>
+    <title>Catch the Target - Performance Optimized</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -473,7 +473,6 @@
             const boardWidth = board.clientWidth;
             const boardHeight = board.clientHeight;
             
-            // CONFIGURED EXACTLY TO 3.0 MULTIPLIER AS REQUESTED
             state.targetH = Math.max(boardHeight * (60 / 600), 45);
             state.targetW = state.targetH * 3.0; 
             
@@ -487,7 +486,6 @@
             const currentSpeedPPS = (SPEED_MULTIPLIER * 60) * (boardWidth / 800);
             const direction = Math.random() < 0.5 ? 1 : -1;
             
-            // Start at exactly midline
             state.posX = (boardWidth / 2) - (state.targetW / 2);
             state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             state.velocityX = currentSpeedPPS * direction;
@@ -495,21 +493,24 @@
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
 
-            // Initialize clocks securely with performance.now()
-            const unifiedTime = performance.now();
-            state.lastFrameTime = unifiedTime;
-            state.startTime = unifiedTime;
-            state.historyBuffer = []; 
-            state.active = true;
-
-            if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
-            state.animationFrameId = requestAnimationFrame(gameLoop);
+            // FIX: Force the browser to paint the heavy canvas to the screen 
+            // BEFORE starting the clocks and physics loop.
+            requestAnimationFrame(() => {
+                requestAnimationFrame((timestamp) => {
+                    state.lastFrameTime = timestamp;
+                    state.startTime = timestamp;
+                    state.historyBuffer = []; 
+                    state.active = true;
+                    
+                    if (state.animationFrameId) cancelAnimationFrame(state.animationFrameId);
+                    state.animationFrameId = requestAnimationFrame(gameLoop);
+                });
+            });
         }
 
         function gameLoop(timestamp) { 
             if (!state.active) return;
             
-            // Standard performance.now() delta-time calculation
             let dt = (timestamp - state.lastFrameTime) / 1000;
             if (dt < 0) dt = 0; 
             if (dt > 0.1) dt = 0.1; 
@@ -548,38 +549,47 @@
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
         }
 
-        // --- STRICT, NATIVE PERFORMANCE.NOW() HIT DETECTION ---
+        // --- LINEAR INTERPOLATION (LERP) HIT DETECTION ---
         board.addEventListener('pointerdown', (e) => {
-            if (!state.active) return;
+            if (!state.active || state.historyBuffer.length < 2) return;
             if (e.cancelable) e.preventDefault(); 
             
-            // Unified Engine Clock: perfectly matches the physics timestamp loop
-            const tapTime = performance.now(); 
-
+            // 1. Hardware time + Standard mobile screen latency (30ms)
+            const tapTime = e.timeStamp || performance.now();
+            const visualTime = tapTime - 30; 
+            
             const tapX = e.clientX;
             const tapY = e.clientY;
 
-            if (state.historyBuffer.length === 0) return; 
+            let targetXAtTap = state.historyBuffer[0].x;
+            let targetYAtTap = state.historyBuffer[0].y;
 
-            let closestFrame = state.historyBuffer[0];
-            let smallestTimeDifference = Infinity;
+            // 2. Find the two exact frames that straddle the exact millisecond tapped
+            let frameBefore = state.historyBuffer[0];
+            let frameAfter = state.historyBuffer[state.historyBuffer.length - 1];
 
-            for (const frame of state.historyBuffer) {
-                const timeDifference = Math.abs(frame.time - tapTime);
-                if (timeDifference < smallestTimeDifference) {
-                    smallestTimeDifference = timeDifference;
-                    closestFrame = frame;
+            for (let i = 0; i < state.historyBuffer.length - 1; i++) {
+                if (state.historyBuffer[i].time <= visualTime && state.historyBuffer[i+1].time >= visualTime) {
+                    frameBefore = state.historyBuffer[i];
+                    frameAfter = state.historyBuffer[i+1];
+                    break;
                 }
             }
 
-            if (!closestFrame) return;
+            // 3. Calculate exact sub-pixel position via Lerp
+            const timeGap = frameAfter.time - frameBefore.time;
+            if (timeGap > 0) {
+                const progress = (visualTime - frameBefore.time) / timeGap;
+                targetXAtTap = frameBefore.x + (frameAfter.x - frameBefore.x) * progress;
+                targetYAtTap = frameBefore.y + (frameAfter.y - frameBefore.y) * progress;
+            }
 
-            // 15px INVISIBLE THUMB MARGIN
+            // 4. Strict, accurate experimental margins restored (15px)
             const margin = 15; 
-            const hitLeft = closestFrame.x - margin;
-            const hitRight = closestFrame.x + state.targetW + margin;
-            const hitTop = closestFrame.y - margin;
-            const hitBottom = closestFrame.y + state.targetH + margin;
+            const hitLeft = targetXAtTap - margin;
+            const hitRight = targetXAtTap + state.targetW + margin;
+            const hitTop = targetYAtTap - margin;
+            const hitBottom = targetYAtTap + state.targetH + margin;
 
             if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
                 handleHit(tapTime);
@@ -588,7 +598,6 @@
             }
         });
 
-        // Instant Miss Tracker - No ignored taps, tracks as fast as you can tap
         function handleMiss(tapTime) {
             state.misses++; 
             document.getElementById('miss-display').innerText = state.misses;
