@@ -564,7 +564,9 @@
             if (tapTime > 1e12) {
                 tapTime = performance.now() - (Date.now() - e.timeStamp);
             }
-
+            
+            tapTime = tapTime-45;
+            
             if (tapTime - state.startTime < 50) return; 
 
             const tapX = e.clientX;
