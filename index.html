@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - High Speed Optimized</title>
+    <title>Catch the Target - Performance.now() Optimized</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -158,7 +158,7 @@
     <script>
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 17; // Changed to match your settings
+        const SPEED_MULTIPLIER = 17; 
         const DIFFICULTY_MODE = "Hard";
 
         // --- EXPERIMENT DESIGN ---
@@ -473,7 +473,7 @@
             const boardWidth = board.clientWidth;
             const boardHeight = board.clientHeight;
             
-            // CONFIGURED FOR SHORT RECTANGLE (2.0)
+            // CONFIGURED EXACTLY TO 3.0 MULTIPLIER AS REQUESTED
             state.targetH = Math.max(boardHeight * (60 / 600), 45);
             state.targetW = state.targetH * 3.0; 
             
@@ -495,7 +495,7 @@
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
 
-            // Initialize clocks safely
+            // Initialize clocks securely with performance.now()
             const unifiedTime = performance.now();
             state.lastFrameTime = unifiedTime;
             state.startTime = unifiedTime;
@@ -509,8 +509,9 @@
         function gameLoop(timestamp) { 
             if (!state.active) return;
             
+            // Standard performance.now() delta-time calculation
             let dt = (timestamp - state.lastFrameTime) / 1000;
-            if (dt < 0) dt = 0; // Failsafe for weird browser timestamps
+            if (dt < 0) dt = 0; 
             if (dt > 0.1) dt = 0.1; 
             state.lastFrameTime = timestamp;
 
@@ -547,12 +548,12 @@
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
         }
 
-        // --- BULLETPROOF UNIFIED HIT DETECTION ---
+        // --- STRICT, NATIVE PERFORMANCE.NOW() HIT DETECTION ---
         board.addEventListener('pointerdown', (e) => {
             if (!state.active) return;
             if (e.cancelable) e.preventDefault(); 
             
-            // Unified Engine Clock: Bypasses all hardware timestamp mismatch bugs
+            // Unified Engine Clock: perfectly matches the physics timestamp loop
             const tapTime = performance.now(); 
 
             const tapX = e.clientX;
@@ -574,7 +575,6 @@
             if (!closestFrame) return;
 
             // 15px INVISIBLE THUMB MARGIN
-            // Compensates for the physical width of a human thumb over a fast, small target.
             const margin = 15; 
             const hitLeft = closestFrame.x - margin;
             const hitRight = closestFrame.x + state.targetW + margin;
@@ -588,7 +588,7 @@
             }
         });
 
-        // Instant Miss Tracker - No ignored taps, tracks as fast as you can click
+        // Instant Miss Tracker - No ignored taps, tracks as fast as you can tap
         function handleMiss(tapTime) {
             state.misses++; 
             document.getElementById('miss-display').innerText = state.misses;
