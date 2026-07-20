@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - High Speed & Calibrated</title>
+    <title>Catch the Target - High Speed & Strict Hitbox</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -158,7 +158,6 @@
     <script>
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        // INCREASED SPEED: Raised from 17 to 24 for higher difficulty
         const SPEED_MULTIPLIER = 24; 
         const DIFFICULTY_MODE = "Hard";
 
@@ -452,7 +451,7 @@
         document.getElementById('begin-first-trial-btn').addEventListener('click', () => {
             const btn = document.getElementById('begin-first-trial-btn');
             btn.disabled = true;
-            let cd = 3; btn.innerText = `Starting in ${cd}...`;
+            let cd = 2; btn.innerText = `Starting in ${cd}...`;
             const cdTimer = setInterval(() => {
                 cd--;
                 if (cd > 0) btn.innerText = `Starting in ${cd}...`;
@@ -540,7 +539,6 @@
                 state.historyBuffer = []; 
             }
 
-            // High precision buffer maintains 60 historical states (~1 sec @ 60fps)
             state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
             if (state.historyBuffer.length > 60) state.historyBuffer.shift(); 
         }
@@ -549,19 +547,18 @@
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
         }
 
-        // --- CALIBRATED HIGH-SPEED LERP HIT DETECTION ---
+        // --- STRICT LERP HIT DETECTION ---
         board.addEventListener('pointerdown', (e) => {
             if (!state.active || state.historyBuffer.length < 2) return;
             if (e.cancelable) e.preventDefault(); 
             
-            const tapTime = e.timeStamp || performance.now();
+            // 1. Lock precision directly to the physics loop clock
+            const tapTime = performance.now();
             
-            // DYNAMIC DISPLAY LAG CORRECTION:
-            // High speeds make screen response time more noticeable.
-            // Scale lag offset dynamically relative to velocity to preserve accuracy.
-            const speedRatio = Math.abs(state.velocityX) / 800;
-            const visualLagMs = Math.min(30 + (speedRatio * 10), 50); 
-            const visualTime = tapTime - visualLagMs; 
+            // 2. MINIMAL HARD DELAY CORRECTION
+            // Only rewinds a flat 8ms to account for raw digitizer processing time.
+            // Completely eliminates the trailing ghost hitbox.
+            const visualTime = tapTime - 8; 
             
             const tapX = e.clientX;
             const tapY = e.clientY;
@@ -588,7 +585,9 @@
                 targetYAtTap = frameBefore.y + (frameAfter.y - frameBefore.y) * progress;
             }
 
-            const margin = 15; 
+            // 3. STRICT PHYSICAL MARGIN
+            // Reduced to 8px. It will no longer forgive sloppy or late taps.
+            const margin = 8; 
             const hitLeft = targetXAtTap - margin;
             const hitRight = targetXAtTap + state.targetW + margin;
             const hitTop = targetYAtTap - margin;
@@ -631,7 +630,7 @@
                 // FIRST COUNTDOWN (Rest period before enabling button)
                 const nextTrialBtn = document.getElementById('next-trial-btn');
                 nextTrialBtn.disabled = true; 
-                let cd = 3; 
+                let cd = 2; 
                 nextTrialBtn.innerText = `Please wait (${cd}s)...`;
                 
                 const cdTimer = setInterval(() => {
@@ -651,7 +650,7 @@
         document.getElementById('next-trial-btn').addEventListener('click', () => {
             const nextTrialBtn = document.getElementById('next-trial-btn');
             nextTrialBtn.disabled = true;
-            let prepCd = 3;
+            let prepCd = 2;
             nextTrialBtn.innerText = `Get Ready (${prepCd}s)...`;
 
             const prepTimer = setInterval(() => {
