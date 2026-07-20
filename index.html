@@ -158,7 +158,7 @@
     <script>
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 15;
+        const SPEED_MULTIPLIER = 20;
         const DIFFICULTY_MODE = "Hard";
 
         // --- EXPERIMENT DESIGN ---
@@ -476,7 +476,7 @@
             
             // IF YOU WANT TO SHRINK THE RECTANGLE, CHANGE THE 3.5 MULTIPLIER BELOW
             state.targetH = Math.max(boardHeight * (60 / 600), 45);
-            state.targetW = state.targetH * 3.5; 
+            state.targetW = state.targetH * 2.0; 
             
             target.style.width = `${state.targetW}px`; 
             target.style.height = `${state.targetH}px`; 
