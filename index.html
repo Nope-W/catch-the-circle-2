@@ -476,7 +476,7 @@
             
             // IF YOU WANT TO SHRINK THE RECTANGLE, CHANGE THE 3.5 MULTIPLIER BELOW
             state.targetH = Math.max(boardHeight * (60 / 600), 45);
-            state.targetW = state.targetH * 2.0; 
+            state.targetW = state.targetH * 2.2; 
             
             target.style.width = `${state.targetW}px`; 
             target.style.height = `${state.targetH}px`; 
@@ -565,7 +565,7 @@
                 tapTime = performance.now() - (Date.now() - e.timeStamp);
             }
             
-            tapTime = tapTime-45;
+            tapTime = tapTime-30;
             
             if (tapTime - state.startTime < 50) return; 
 
