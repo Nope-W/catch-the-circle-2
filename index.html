@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - Final Fixed</title>
+    <title>Catch the Target - High Speed Optimized</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
@@ -158,7 +158,7 @@
     <script>
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 17;
+        const SPEED_MULTIPLIER = 17; // Changed to match your settings
         const DIFFICULTY_MODE = "Hard";
 
         // --- EXPERIMENT DESIGN ---
@@ -187,8 +187,7 @@
             targetW: 0,
             targetH: 0,
             historyBuffer: [],
-            animationFrameId: null,
-            lastMissTime: 0
+            animationFrameId: null
         };
 
         // --- DOM ELEMENTS ---
@@ -474,9 +473,9 @@
             const boardWidth = board.clientWidth;
             const boardHeight = board.clientHeight;
             
-            // IF YOU WANT TO SHRINK THE RECTANGLE, CHANGE THE 3.5 MULTIPLIER BELOW
+            // CONFIGURED FOR SHORT RECTANGLE (2.0)
             state.targetH = Math.max(boardHeight * (60 / 600), 45);
-            state.targetW = state.targetH * 2.2; 
+            state.targetW = state.targetH * 2.0; 
             
             target.style.width = `${state.targetW}px`; 
             target.style.height = `${state.targetH}px`; 
@@ -488,7 +487,7 @@
             const currentSpeedPPS = (SPEED_MULTIPLIER * 60) * (boardWidth / 800);
             const direction = Math.random() < 0.5 ? 1 : -1;
             
-            // Initial Physics State
+            // Start at exactly midline
             state.posX = (boardWidth / 2) - (state.targetW / 2);
             state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
             state.velocityX = currentSpeedPPS * direction;
@@ -496,6 +495,7 @@
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
 
+            // Initialize clocks safely
             const unifiedTime = performance.now();
             state.lastFrameTime = unifiedTime;
             state.startTime = unifiedTime;
@@ -510,6 +510,7 @@
             if (!state.active) return;
             
             let dt = (timestamp - state.lastFrameTime) / 1000;
+            if (dt < 0) dt = 0; // Failsafe for weird browser timestamps
             if (dt > 0.1) dt = 0.1; 
             state.lastFrameTime = timestamp;
 
@@ -527,24 +528,17 @@
             const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
             const safeMarginY = (window.innerHeight - state.targetH - currentHeaderHeight) * 0.1;
 
-            // --- THE NEW MIDLINE RESPAWN LOGIC ---
-            // If the target completely leaves the screen on either side:
             if (state.posX > boardWidth || state.posX < -state.targetW) {
-                
-                // 1. Respawn in the exact midline
                 state.posX = (boardWidth / 2) - (state.targetW / 2);
                 state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
                 
-                // 2. Randomly pick Left or Right for the new run (No mid-air jukes)
                 const currentSpeed = Math.abs(state.velocityX);
                 const newDirection = Math.random() < 0.5 ? 1 : -1;
                 state.velocityX = currentSpeed * newDirection;
                 
-                // 3. Clear the history buffer so we don't register ghost hits during the teleport
                 state.historyBuffer = []; 
             }
 
-            // Log mathematical truth into history buffer for anti-lag hit detection
             state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
             if (state.historyBuffer.length > 30) state.historyBuffer.shift(); 
         }
@@ -553,26 +547,18 @@
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
         }
 
-        // --- STRICT, LAG-COMPENSATED HIT DETECTION ---
+        // --- BULLETPROOF UNIFIED HIT DETECTION ---
         board.addEventListener('pointerdown', (e) => {
             if (!state.active) return;
             if (e.cancelable) e.preventDefault(); 
             
-            let tapTime = e.timeStamp;
-            
-            // MOBILE EPOCH NORMALIZATION
-            if (tapTime > 1e12) {
-                tapTime = performance.now() - (Date.now() - e.timeStamp);
-            }
-            
-            tapTime = tapTime-0;
-            
-            if (tapTime - state.startTime < 50) return; 
+            // Unified Engine Clock: Bypasses all hardware timestamp mismatch bugs
+            const tapTime = performance.now(); 
 
             const tapX = e.clientX;
             const tapY = e.clientY;
 
-            if (state.historyBuffer.length === 0) return; // Failsafe
+            if (state.historyBuffer.length === 0) return; 
 
             let closestFrame = state.historyBuffer[0];
             let smallestTimeDifference = Infinity;
@@ -587,10 +573,13 @@
 
             if (!closestFrame) return;
 
-            const hitLeft = closestFrame.x;
-            const hitRight = closestFrame.x + state.targetW;
-            const hitTop = closestFrame.y;
-            const hitBottom = closestFrame.y + state.targetH;
+            // 15px INVISIBLE THUMB MARGIN
+            // Compensates for the physical width of a human thumb over a fast, small target.
+            const margin = 15; 
+            const hitLeft = closestFrame.x - margin;
+            const hitRight = closestFrame.x + state.targetW + margin;
+            const hitTop = closestFrame.y - margin;
+            const hitBottom = closestFrame.y + state.targetH + margin;
 
             if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
                 handleHit(tapTime);
@@ -598,6 +587,12 @@
                 handleMiss(tapTime);
             }
         });
+
+        // Instant Miss Tracker - No ignored taps, tracks as fast as you can click
+        function handleMiss(tapTime) {
+            state.misses++; 
+            document.getElementById('miss-display').innerText = state.misses;
+        }
 
         function handleHit(tapTime) {
             state.active = false; 
@@ -630,12 +625,6 @@
                     else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
                 }, 1000);
             }
-        }
-
-        function handleMiss(tapTime) {
-                state.lastMissTime = tapTime; 
-                state.misses++; 
-                document.getElementById('miss-display').innerText = state.misses;
         }
 
         document.getElementById('next-trial-btn').addEventListener('click', startTrial);
