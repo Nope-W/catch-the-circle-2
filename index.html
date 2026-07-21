@@ -158,7 +158,7 @@
     <script>
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 24; 
+        const SPEED_MULTIPLIER = 22; 
         const DIFFICULTY_MODE = "Hard";
 
         // --- EXPERIMENT DESIGN ---
@@ -539,8 +539,11 @@
                 state.historyBuffer = []; 
             }
 
-            state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
-            if (state.historyBuffer.length > 60) state.historyBuffer.shift(); 
+state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
+// Automatically drops old frames based on time (500ms), no matter the Hz
+while (state.historyBuffer.length > 0 && timestamp - state.historyBuffer[0].time > 500) {
+    state.historyBuffer.shift(); 
+}
         }
 
         function render() {
