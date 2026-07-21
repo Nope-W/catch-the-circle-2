@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Catch the Target - High Speed & Strict Hitbox</title>
+    <title>Catch the Target - Vertical Smartphone Edition</title>
     <style>
         /* MOBILE LOCKDOWN CSS */
         body { 
             font-family: sans-serif; text-align: center; background-color: #000; color: #fff; margin: 0; padding: 0; 
-            width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; 
+            width: 100vw; height: 100vh; height: 100dvh; overflow: hidden; touch-action: none;
         }
         
         #game-board { 
@@ -22,77 +22,102 @@
 
         .header-container { 
             position: fixed; top: 0; left: 0; width: 100%; 
-            background: rgba(0, 0, 0, 0.65); backdrop-filter: blur(4px); 
+            background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); 
             display: flex; justify-content: space-between; align-items: center;
-            padding: 10px 20px; box-sizing: border-box; z-index: 10; pointer-events: none;
+            padding: 10px 15px; box-sizing: border-box; z-index: 10; pointer-events: none;
         }
         
-        h1 { font-size: 1.2rem; margin: 0; text-align: left; text-transform: uppercase; letter-spacing: 1px;}
-        .stats { display: flex; gap: 20px; font-size: 1.1rem; margin: 0; }
+        h1 { font-size: 1rem; margin: 0; text-align: left; text-transform: uppercase; letter-spacing: 1px;}
+        .stats { display: flex; gap: 15px; font-size: 0.95rem; margin: 0; }
         
         #target { 
             position: absolute; display: none; top: 0; left: 0;
-            box-shadow: 0 0 6px rgba(0,0,0,0.5); z-index: 5; 
+            box-shadow: 0 0 8px rgba(0,0,0,0.6); z-index: 5; 
             will-change: transform; pointer-events: none; 
+            border-radius: 4px;
         }
 
-        #portrait-lock {
+        /* VISUAL MISS RIPPLE */
+        .miss-ripple {
+            position: absolute;
+            border: 2px solid rgba(231, 76, 60, 0.9);
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            transform: translate(-50%, -50%) scale(1);
+            animation: ripple-fade 0.4s ease-out forwards;
+            pointer-events: none;
+            z-index: 20;
+        }
+
+        @keyframes ripple-fade {
+            to { transform: translate(-50%, -50%) scale(3); opacity: 0; }
+        }
+
+        /* ORIENTATION & DEVICE LOCKS */
+        #orientation-lock, #device-lock {
             display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
             background-color: #c0392b; color: white; z-index: 10000;
             flex-direction: column; justify-content: center; align-items: center;
             font-size: 1.5rem; font-weight: bold; padding: 20px; text-align: center;
         }
-        @media (orientation: portrait) { #portrait-lock { display: flex; } }
+        @media (orientation: landscape) { #orientation-lock { display: flex; } }
         
         .overlay-screen { 
             position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
-            background-color: rgba(0, 0, 0, 0.95); z-index: 100; 
+            background-color: rgba(0, 0, 0, 0.97); z-index: 100; 
             overflow-y: auto; display: flex; flex-direction: column; 
-            align-items: center; justify-content: flex-start; padding: 20px 15px; 
+            align-items: center; justify-content: flex-start; padding: 40px 15px 20px 15px; 
         }
         
-        .overlay-screen h2 { margin-top: 0; color: #4CAF50; font-size: 1.6rem; margin-bottom: 10px; }
+        .overlay-screen h2 { margin-top: 0; color: #4CAF50; font-size: 1.6rem; margin-bottom: 15px; }
         #trial-screen, #end-screen, #ready-screen { display: none; justify-content: center; } 
         
         .instructions-box {
-            max-width: 600px; background-color: rgba(255, 255, 255, 0.1);
-            padding: 10px 15px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.3; font-size: 1rem;
+            max-width: 400px; background-color: rgba(255, 255, 255, 0.1); border-left: 4px solid #4CAF50;
+            padding: 15px; border-radius: 0 8px 8px 0; margin-bottom: 20px; text-align: left; line-height: 1.4; font-size: 0.95rem;
         }
-        .instructions-box p { margin: 5px 0; } 
+        .instructions-box p { margin: 8px 0; } 
+        .instructions-box ul { margin: 0; padding-left: 20px; }
+        .instructions-box li { margin-bottom: 5px; }
         
-        .form-row { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; width: 100%; max-width: 700px; flex-wrap: wrap;}
-        .control-group { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 160px;}
-        .control-group label { margin-bottom: 3px; font-weight: bold; font-size: 0.9rem;}
-        input[type="text"], select { padding: 8px; font-size: 1rem; border-radius: 5px; border: none; text-align: center; width: 90%; transition: 0.2s; }
+        .form-row { display: flex; flex-direction: column; gap: 15px; justify-content: center; margin-bottom: 20px; width: 100%; max-width: 400px;}
+        .control-group { display: flex; flex-direction: column; align-items: flex-start; width: 100%;}
+        .control-group label { margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; color: #ccc;}
+        input[type="text"], select { padding: 10px; font-size: 1rem; border-radius: 5px; border: none; text-align: left; width: 100%; box-sizing: border-box; transition: 0.2s; background: #333; color: #fff;}
         
-        .input-error { border: 2px solid #e74c3c !important; background-color: #fadbd8 !important; }
+        .input-error { border: 2px solid #e74c3c !important; background-color: #fadbd8 !important; color: #000 !important;}
 
-        .checkbox-group { margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 1rem; cursor: pointer; width: 100%; }
-        .checkbox-group input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        .checkbox-group { margin-bottom: 20px; display: flex; align-items: center; justify-content: flex-start; gap: 10px; font-size: 0.95rem; cursor: pointer; width: 100%; max-width: 400px; }
+        .checkbox-group input[type="checkbox"] { width: 22px; height: 22px; cursor: pointer; }
         
-        button { padding: 10px 20px; font-size: 1.1rem; font-weight: bold; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 5px; margin: 10px; transition: 0.2s; flex-shrink: 0;}
-        button:hover { background-color: #45a049; }
-        button:disabled { background-color: #7f8c8d; cursor: not-allowed; }
+        button { padding: 12px 30px; font-size: 1.1rem; font-weight: bold; cursor: pointer; background-color: #4CAF50; color: white; border: none; border-radius: 8px; margin: 10px; transition: 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.3); width: 100%; max-width: 300px;}
+        button:active { transform: translateY(2px); box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+        button:disabled { background-color: #555; color: #888; cursor: not-allowed; box-shadow: none; transform: none;}
+        
         .danger-btn { background-color: #3498db; }
-        .danger-btn:hover { background-color: #2980b9; }
         
         #upload-status { margin-top: 15px; font-weight: bold; color: #f1c40f; display: none; }
-        #rotate-hint { display: none; color: #e74c3c; font-weight: bold; margin-bottom: 5px; font-size: 0.9rem;}
-        @media (orientation: portrait) { #rotate-hint { display: block; } }
-
         .debug-mode #target { box-shadow: 0 0 0 2px red inset !important; }
     </style>
 </head>
 <body>
 
-    <div id="portrait-lock">
-        <span style="font-size: 3rem; margin-bottom: 20px;">🔄</span>
-        Please rotate your device to landscape mode to play.
+    <!-- DEVICE LOCK (Block Laptops & Tablets) -->
+    <div id="device-lock">
+        <span style="font-size: 3rem; margin-bottom: 20px;">📱</span>
+        This experiment requires a smartphone.<br><br>
+        <span style="font-size: 1rem; font-weight: normal;">Please open this link on your mobile phone to participate.</span>
+    </div>
+
+    <!-- ORIENTATION LOCK -->
+    <div id="orientation-lock">
+        <span style="font-size: 3rem; margin-bottom: 20px;">📱</span>
+        Please rotate your device to Portrait Mode to play.
     </div>
 
     <div class="header-container">
-        <h1>Catch the Target</h1>
-        <div id="rotate-hint">📱 Rotate to Landscape</div>
+        <h1>Catch It</h1>
         <div class="stats">
             <div>Trial: <strong id="trial-counter-display">0 / 16</strong></div>
             <div>Time: <strong id="live-time-display">0.00</strong> s</div>
@@ -106,26 +131,19 @@
     </div>
 
     <div id="intro-screen" class="overlay-screen">
-        <h2>Catch the Target</h2>
+        <h2>Catch the Lizard</h2>
         <div class="instructions-box">
-            <p>🎯 <strong>Goal:</strong> Find and tap the camouflaged moving target as fast as you can.</p>
-            <p style="color: #3498db;">📱 <strong>Phone Users:</strong> Landscape mode is strictly required.</p>
+            <p>🎯 <strong>Your Task:</strong></p>
+            <ul>
+                <li>Hold your phone normally and get your <strong>two thumbs</strong> ready.</li>
+                <li>A camouflaged target will drop straight down the screen in random invisible lanes.</li>
+                <li>Tap the target anywhere on the screen before it escapes out the bottom.</li>
+            </ul>
         </div>
-        <label class="checkbox-group">
-            <input type="checkbox" id="colorblind-check"> I have a color vision deficiency
-        </label>
         <div class="form-row">
             <div class="control-group">
                 <label>Gamer Name</label>
                 <input type="text" id="participant-id" placeholder="e.g., player1" autocomplete="off">
-            </div>
-            <div class="control-group">
-                <label>Device Type</label>
-                <select id="device-select">
-                    <option value="Laptop/Desktop" selected>Laptop / Desktop</option>
-                    <option value="Tablet">Tablet</option>
-                    <option value="Smartphone">Smartphone</option>
-                </select>
             </div>
             <div class="control-group">
                 <label>Have you played before?</label>
@@ -135,6 +153,9 @@
                 </select>
             </div>
         </div>
+        <label class="checkbox-group">
+            <input type="checkbox" id="colorblind-check"> I have a color vision deficiency
+        </label>
         <button id="start-session-btn">Start Experiment</button>
     </div>
 
@@ -151,15 +172,24 @@
 
     <div id="end-screen" class="overlay-screen">
         <h2>Experiment Complete</h2>
-        <button id="finish-session-btn" class="danger-btn">Finish Session & Upload Data</button>
+        <button id="finish-session-btn" class="danger-btn">Finish Session & Upload</button>
         <div id="upload-status">Uploading data to Google Sheets...</div>
     </div>
 
     <script>
+        // --- DEVICE LOCK ENFORCEMENT ---
+        const isMobilePhone = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const isTablet = /(ipad|tablet|(android(?!.*mobile))|(windows(?!.*phone)(.*touch))|kindle|playbook|silk|(puffin(?!.*(IP|AP|WP))))/i.test(navigator.userAgent.toLowerCase());
+        if (!isMobilePhone || isTablet) {
+            document.getElementById('device-lock').style.display = 'flex';
+        }
+
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 15; 
-        const DIFFICULTY_MODE = "Hard";
+        const SPEED_MULTIPLIER = 20; 
+        const DIFFICULTY_MODE = "Hard-Vertical";
+        const SYSTEM_LAG_MS = 35; // Hardware display delay
+        const NUM_LANES = 4; // Number of invisible vertical lanes
 
         // --- EXPERIMENT DESIGN ---
         const conditionsList = ['Hue_Only', 'Luminance_Only', 'Hue_And_Luminance', 'Control'];
@@ -171,7 +201,7 @@
         let currentTrialMetrics = {}; 
 
         // --- TRACKING VARIABLES ---
-        let participantId = "Unknown", isColorblind = "No", deviceType = "Laptop/Desktop";
+        let participantId = "Unknown", isColorblind = "No", deviceType = "Smartphone";
         let selfReportedRepeat = "No", systemDetectedRepeat = "No";
         let trialCounter = 0;
 
@@ -182,7 +212,8 @@
             misses: 0,
             posX: 0,
             posY: 0,
-            velocityX: 0,
+            velocityY: 0,
+            currentLane: 1,
             lastFrameTime: 0,
             targetW: 0,
             targetH: 0,
@@ -201,7 +232,6 @@
 
         if (DEBUG_MODE) document.body.classList.add('debug-mode');
 
-        // --- FISHER-YATES SHUFFLE ---
         function shuffleArray(array) {
             let currentIndex = array.length, randomIndex;
             while (currentIndex !== 0) {
@@ -212,7 +242,6 @@
             return array;
         }
 
-        // --- CIELAB <-> sRGB MATH ---
         function labToRgb(l, a, b) {
             let y = (l + 16) / 116, x = a / 500 + y, z = y - b / 200, r, g, b_out;
             x = 0.95047 * ((x * x * x > 0.008856) ? x * x * x : (x - 16/116) / 7.787);
@@ -241,7 +270,6 @@
             return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
         }
 
-        // --- DYNAMIC BACKGROUND GENERATOR ---
         function generateBackground(canvas, metrics) {
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const width = canvas.width;
@@ -291,11 +319,13 @@
             ctx.fillStyle = `rgb(${palette[0][0]}, ${palette[0][1]}, ${palette[0][2]})`;
             ctx.fillRect(0, 0, width, height);
 
-            const shapeCount = Math.floor(metrics.spatialFreq * 12000) + 150;
-            const maxShapeSize = (width + height) / (metrics.spatialFreq * 80 + 5);
+            // HIGHER DENSITY CLUTTER WITH STRICT SIZE LIMITS
+            // Target is narrow, so max clutter radius must be strictly less than half the target width
+            const maxShapeRadius = (metrics.targetWidth * 0.8) / 2; 
+            const shapeCount = Math.floor(metrics.spatialFreq * 25000) + 600; 
 
             for (let i = 0; i < shapeCount; i++) {
-                const radius = (Math.random() * maxShapeSize + 20) / 2;
+                const radius = Math.max((Math.random() * maxShapeRadius), 5);
                 const cx = Math.random() * (width + radius * 2) - radius;
                 const cy = Math.random() * (height + radius * 2) - radius;
                 const color = palette[Math.floor(Math.random() * palette.length)];
@@ -309,11 +339,11 @@
                     const rotation = Math.random() * Math.PI * 2;
                     ctx.ellipse(cx, cy, radius, radiusY, rotation, 0, 2 * Math.PI);
                 } else {
-                    const vertices = Math.floor(Math.random() * 6) + 3; 
+                    const vertices = Math.floor(Math.random() * 5) + 3; 
                     for (let j = 0; j < vertices; j++) {
                         const baseAngle = (j / vertices) * (2 * Math.PI);
                         const angle = baseAngle + (Math.random() * 0.4 - 0.2);
-                        const r = radius * (0.3 + Math.random() * 0.7);
+                        const r = radius * (0.4 + Math.random() * 0.6);
                         const px = cx + r * Math.cos(angle);
                         const py = cy + r * Math.sin(angle);
                         if (j === 0) ctx.moveTo(px, py);
@@ -366,13 +396,10 @@
                 varB += Math.pow(empBValues[i] - meanB, 2);
             }
             
-            const empiricalLumSD = Math.sqrt(varL / sampleSize);
-            const empiricalColorSD = Math.sqrt((varA + varB) / sampleSize); 
-
             return {
                 preyColor: [Math.round(sumR/sampleSize), Math.round(sumG/sampleSize), Math.round(sumB/sampleSize)],
-                empiricalLumSD: empiricalLumSD,
-                empiricalColorSD: empiricalColorSD,
+                empiricalLumSD: Math.sqrt(varL / sampleSize),
+                empiricalColorSD: Math.sqrt((varA + varB) / sampleSize),
                 empiricalSpatialFreq: meanEdge 
             };
         }
@@ -381,20 +408,24 @@
             const currentCondition = trialPlaylist[trialCounter - 1]; 
             const randomFreq = 0.01 + (Math.random() * 0.08); 
             const randomBaseA = -30 + (Math.random() * 60); 
-            const randomBaseB = 50; 
             
             let lumVariance = 0, colorVariance = 0;
             if (currentCondition === "Hue_Only") colorVariance = 20; 
             else if (currentCondition === "Luminance_Only") lumVariance = 20;
             else if (currentCondition === "Hue_And_Luminance") { lumVariance = 20; colorVariance = 20; }
 
+            const boardWidth = board.clientWidth;
+            // Generate target dimensions FIRST so background can strictly constrain clutter size
+            state.targetW = Math.max(boardWidth * (80 / 400), 40); 
+            state.targetH = state.targetW * 2.5; // Tall and narrow "lizard"
+            
             currentTrialMetrics = {
                 spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
-                condition: currentCondition, baseL: 50, baseA: randomBaseA, baseB: randomBaseB,
-                empSpatial: 0, empLum: 0, empColor: 0
+                condition: currentCondition, baseL: 50, baseA: randomBaseA, baseB: 50,
+                targetWidth: state.targetW, empSpatial: 0, empLum: 0, empColor: 0
             };
 
-            bgCanvas.width = board.clientWidth; 
+            bgCanvas.width = boardWidth; 
             bgCanvas.height = board.clientHeight;
             
             const bgData = generateBackground(bgCanvas, currentTrialMetrics);
@@ -403,16 +434,12 @@
             currentTrialMetrics.empLum = bgData.empiricalLumSD;
             currentTrialMetrics.empColor = bgData.empiricalColorSD;
             
+            target.style.width = `${state.targetW}px`; 
+            target.style.height = `${state.targetH}px`; 
             target.style.backgroundColor = `rgb(${bgData.preyColor[0]}, ${bgData.preyColor[1]}, ${bgData.preyColor[2]})`;
         }
 
-        // --- SESSION INITIALIZATION ---
         document.getElementById('start-session-btn').addEventListener('click', () => {
-            if (window.innerHeight > window.innerWidth) { 
-                alert("Please resize your window or rotate your device to Landscape Mode before starting."); 
-                return; 
-            }
-            
             const inputField = document.getElementById('participant-id');
             const enteredId = inputField.value.trim();
             if (enteredId === "") { 
@@ -425,7 +452,6 @@
             
             participantId = enteredId; 
             isColorblind = document.getElementById('colorblind-check').checked ? "Yes" : "No";
-            deviceType = document.getElementById('device-select').value;
             selfReportedRepeat = document.getElementById('repeat-select').value;
             
             try { systemDetectedRepeat = localStorage.getItem('hasPlayedCatchTheCircle') === 'true' ? "Yes" : "No"; } 
@@ -459,7 +485,26 @@
             }, 1000);
         });
 
-        // --- GAME ENGINE ---
+        function spawnTargetInLane() {
+            const boardWidth = board.clientWidth;
+            const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
+            
+            state.currentLane = Math.floor(Math.random() * NUM_LANES);
+            const laneWidth = boardWidth / NUM_LANES;
+            
+            // Center the target horizontally inside its chosen lane
+            state.posX = (state.currentLane * laneWidth) + (laneWidth / 2) - (state.targetW / 2);
+            
+            // Start just below the header UI, dropping vertically
+            state.posY = currentHeaderHeight; 
+            
+            // Velocity calculation scaled for vertical height rather than width
+            const currentSpeedPPS = (SPEED_MULTIPLIER * 35) * (window.innerHeight / 800);
+            state.velocityY = currentSpeedPPS; 
+            
+            state.historyBuffer = []; 
+        }
+
         function startTrial() {
             trialCounter++; 
             document.getElementById('trial-counter-display').innerText = `${trialCounter} / ${MAX_TRIALS}`;
@@ -469,26 +514,7 @@
             document.getElementById('miss-display').innerText = state.misses;
             
             setupTrialBackground();
-            
-            const boardWidth = board.clientWidth;
-            const boardHeight = board.clientHeight;
-            
-            state.targetH = Math.max(boardHeight * (60 / 600), 45);
-            state.targetW = state.targetH * 3.0; 
-            
-            target.style.width = `${state.targetW}px`; 
-            target.style.height = `${state.targetH}px`; 
-            
-            const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
-            const currentMaxY = boardHeight - state.targetH;
-            const safeMarginY = (currentMaxY - currentHeaderHeight) * 0.1;
-            
-            const currentSpeedPPS = (SPEED_MULTIPLIER * 60) * (boardWidth / 800);
-            const direction = Math.random() < 0.5 ? 1 : -1;
-            
-            state.posX = (boardWidth / 2) - (state.targetW / 2);
-            state.posY = currentHeaderHeight + safeMarginY + Math.random() * (currentMaxY - currentHeaderHeight - 2 * safeMarginY);
-            state.velocityX = currentSpeedPPS * direction;
+            spawnTargetInLane();
             
             target.style.display = 'block'; 
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
@@ -522,46 +548,31 @@
         }
 
         function updatePhysics(dt, timestamp) {
-            state.posX += state.velocityX * dt;
-            
-            const boardWidth = window.innerWidth;
-            const currentHeaderHeight = document.querySelector('.header-container').offsetHeight || 50;
-            const safeMarginY = (window.innerHeight - state.targetH - currentHeaderHeight) * 0.1;
+            // Target moves strictly downward
+            state.posY += state.velocityY * dt;
 
-            if (state.posX > boardWidth || state.posX < -state.targetW) {
-                state.posX = (boardWidth / 2) - (state.targetW / 2);
-                state.posY = currentHeaderHeight + safeMarginY + Math.random() * (window.innerHeight - state.targetH - currentHeaderHeight - 2 * safeMarginY);
-                
-                const currentSpeed = Math.abs(state.velocityX);
-                const newDirection = Math.random() < 0.5 ? 1 : -1;
-                state.velocityX = currentSpeed * newDirection;
-                
-                state.historyBuffer = []; 
+            // If target escapes out the bottom of the screen, respawn at the top in a new lane
+            if (state.posY > window.innerHeight) {
+                spawnTargetInLane();
             }
 
-state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
-// Automatically drops old frames based on time (500ms), no matter the Hz
-while (state.historyBuffer.length > 0 && timestamp - state.historyBuffer[0].time > 500) {
-    state.historyBuffer.shift(); 
-}
+            state.historyBuffer.push({ x: state.posX, y: state.posY, time: timestamp });
+            while (state.historyBuffer.length > 0 && timestamp - state.historyBuffer[0].time > 500) {
+                state.historyBuffer.shift(); 
+            }
         }
 
         function render() {
             target.style.transform = `translate3d(${state.posX}px, ${state.posY}px, 0)`;
         }
 
-        // --- STRICT LERP HIT DETECTION ---
+        // --- STRICT VERTICAL LERP HIT DETECTION ---
         board.addEventListener('pointerdown', (e) => {
-            if (!state.active || state.historyBuffer.length < 2) return;
+            if (!state.active || state.historyBuffer.length === 0) return;
             if (e.cancelable) e.preventDefault(); 
             
-            // 1. Lock precision directly to the physics loop clock
             const tapTime = performance.now();
-            
-            // 2. MINIMAL HARD DELAY CORRECTION
-            // Only rewinds a flat 8ms to account for raw digitizer processing time.
-            // Completely eliminates the trailing ghost hitbox.
-            const visualTime = tapTime - 8; 
+            const visualTime = tapTime - SYSTEM_LAG_MS; 
             
             const tapX = e.clientX;
             const tapY = e.clientY;
@@ -569,43 +580,56 @@ while (state.historyBuffer.length > 0 && timestamp - state.historyBuffer[0].time
             let targetXAtTap = state.historyBuffer[0].x;
             let targetYAtTap = state.historyBuffer[0].y;
 
-            let frameBefore = state.historyBuffer[0];
-            let frameAfter = state.historyBuffer[state.historyBuffer.length - 1];
+            if (state.historyBuffer.length > 1) {
+                let frameBefore = state.historyBuffer[0];
+                let frameAfter = state.historyBuffer[state.historyBuffer.length - 1];
 
-            for (let i = 0; i < state.historyBuffer.length - 1; i++) {
-                if (state.historyBuffer[i].time <= visualTime && state.historyBuffer[i+1].time >= visualTime) {
-                    frameBefore = state.historyBuffer[i];
-                    frameAfter = state.historyBuffer[i+1];
-                    break;
+                for (let i = 0; i < state.historyBuffer.length - 1; i++) {
+                    if (state.historyBuffer[i].time <= visualTime && state.historyBuffer[i+1].time >= visualTime) {
+                        frameBefore = state.historyBuffer[i];
+                        frameAfter = state.historyBuffer[i+1];
+                        break;
+                    }
+                }
+
+                const timeGap = frameAfter.time - frameBefore.time;
+                if (timeGap > 0) {
+                    const progress = (visualTime - frameBefore.time) / timeGap;
+                    targetXAtTap = frameBefore.x + (frameAfter.x - frameBefore.x) * progress;
+                    targetYAtTap = frameBefore.y + (frameAfter.y - frameBefore.y) * progress;
                 }
             }
 
-            // Sub-pixel linear interpolation
-            const timeGap = frameAfter.time - frameBefore.time;
-            if (timeGap > 0) {
-                const progress = (visualTime - frameBefore.time) / timeGap;
-                targetXAtTap = frameBefore.x + (frameAfter.x - frameBefore.x) * progress;
-                targetYAtTap = frameBefore.y + (frameAfter.y - frameBefore.y) * progress;
-            }
-
-            // 3. STRICT PHYSICAL MARGIN
-            // Reduced to 8px. It will no longer forgive sloppy or late taps.
-            const margin = 8; 
+            // VERTICAL TAIL COMPENSATION
+            // Because the target moves DOWN, the visual "tail" photons lag above it.
+            const tailAllowance = Math.abs(state.velocityY * (SYSTEM_LAG_MS / 1000));
+            
+            const margin = 12; 
             const hitLeft = targetXAtTap - margin;
             const hitRight = targetXAtTap + state.targetW + margin;
-            const hitTop = targetYAtTap - margin;
+            
+            // Stretch the top of the hitbox upward to forgive hardware display latency
+            const hitTop = targetYAtTap - margin - tailAllowance;
             const hitBottom = targetYAtTap + state.targetH + margin;
 
             if (tapX >= hitLeft && tapX <= hitRight && tapY >= hitTop && tapY <= hitBottom) {
                 handleHit(tapTime);
             } else {
-                handleMiss(tapTime);
+                handleMiss(tapX, tapY);
             }
         });
 
-        function handleMiss(tapTime) {
+        function handleMiss(tapX, tapY) {
             state.misses++; 
             document.getElementById('miss-display').innerText = state.misses;
+
+            const ripple = document.createElement('div');
+            ripple.className = 'miss-ripple';
+            ripple.style.left = `${tapX}px`;
+            ripple.style.top = `${tapY}px`;
+            board.appendChild(ripple);
+
+            setTimeout(() => { if (ripple.parentNode) ripple.parentNode.removeChild(ripple); }, 400);
         }
 
         function handleHit(tapTime) {
@@ -616,11 +640,13 @@ while (state.historyBuffer.length > 0 && timestamp - state.historyBuffer[0].time
             const sw = window.innerWidth, sh = window.innerHeight;
             
             sessionData.push([
-                participantId, deviceType, DIFFICULTY_MODE, isColorblind, selfReportedRepeat, systemDetectedRepeat, trialCounter, reactionTime, state.misses,
+                participantId, deviceType, DIFFICULTY_MODE, isColorblind, selfReportedRepeat, systemDetectedRepeat, 
+                trialCounter, reactionTime, state.misses,
                 parseFloat(currentTrialMetrics.spatialFreq.toFixed(4)), parseFloat(currentTrialMetrics.empSpatial.toFixed(2)),
                 parseFloat(currentTrialMetrics.lumContrast.toFixed(2)), parseFloat(currentTrialMetrics.empLum.toFixed(2)),
                 parseFloat(currentTrialMetrics.colorClutter.toFixed(2)), parseFloat(currentTrialMetrics.empColor.toFixed(2)),
-                currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait")
+                currentTrialMetrics.condition, sw, sh, (window.devicePixelRatio || 1), (sw > sh ? "Landscape" : "Portrait"),
+                (state.currentLane + 1) // Logs Lane 1, 2, 3, or 4
             ]);
             
             target.style.display = 'none'; 
@@ -630,7 +656,6 @@ while (state.historyBuffer.length > 0 && timestamp - state.historyBuffer[0].time
                 document.getElementById('trial-time').innerText = reactionTime; 
                 trialScreen.style.display = 'flex'; 
                 
-                // FIRST COUNTDOWN (Rest period before enabling button)
                 const nextTrialBtn = document.getElementById('next-trial-btn');
                 nextTrialBtn.disabled = true; 
                 let cd = 2; 
@@ -638,43 +663,29 @@ while (state.historyBuffer.length > 0 && timestamp - state.historyBuffer[0].time
                 
                 const cdTimer = setInterval(() => {
                     cd--;
-                    if (cd > 0) {
-                        nextTrialBtn.innerText = `Please wait (${cd}s)...`;
-                    } else { 
-                        clearInterval(cdTimer); 
-                        nextTrialBtn.disabled = false; 
-                        nextTrialBtn.innerText = "Start Next Trial"; 
-                    }
+                    if (cd > 0) { nextTrialBtn.innerText = `Please wait (${cd}s)...`; } 
+                    else { clearInterval(cdTimer); nextTrialBtn.disabled = false; nextTrialBtn.innerText = "Start Next Trial"; }
                 }, 1000);
             }
         }
 
-        // SECOND COUNTDOWN (Preparation period after clicking Next Trial)
         document.getElementById('next-trial-btn').addEventListener('click', () => {
             const nextTrialBtn = document.getElementById('next-trial-btn');
             nextTrialBtn.disabled = true;
-            let prepCd = 2;
-            nextTrialBtn.innerText = `Get Ready (${prepCd}s)...`;
-
+            let prepCd = 2; nextTrialBtn.innerText = `Get Ready (${prepCd}s)...`;
             const prepTimer = setInterval(() => {
                 prepCd--;
-                if (prepCd > 0) {
-                    nextTrialBtn.innerText = `Get Ready (${prepCd}s)...`;
-                } else {
-                    clearInterval(prepTimer);
-                    startTrial();
-                }
+                if (prepCd > 0) { nextTrialBtn.innerText = `Get Ready (${prepCd}s)...`; } 
+                else { clearInterval(prepTimer); startTrial(); }
             }, 1000);
         });
 
-        // --- DATA UPLOAD ---
-        const finishSessionBtn = document.getElementById('finish-session-btn');
-        const uploadStatus = document.getElementById('upload-status');
-
-        finishSessionBtn.addEventListener('click', () => {
+        document.getElementById('finish-session-btn').addEventListener('click', () => {
+            const finishSessionBtn = document.getElementById('finish-session-btn');
             finishSessionBtn.disabled = true; 
             try { localStorage.setItem('hasPlayedCatchTheCircle', 'true'); } catch(e) { }
             
+            const uploadStatus = document.getElementById('upload-status');
             uploadStatus.style.display = 'block'; uploadStatus.innerText = "Uploading data..."; uploadStatus.style.color = "#f1c40f"; 
             
             fetch("https://script.google.com/macros/s/AKfycbyXjRo5IZY_TZ4yI4DFUJFtC6cue1mdRnVh_13U_DckF1rMJSHEP0Cdg6st18GGbPL33Q/exec", {
