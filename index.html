@@ -186,10 +186,10 @@
 
         // --- CONFIGURATION ---
         const DEBUG_MODE = false; 
-        const SPEED_MULTIPLIER = 40; 
+        const SPEED_MULTIPLIER = 50; 
         const DIFFICULTY_MODE = "Hard-Vertical";
         const SYSTEM_LAG_MS = 35; // Hardware display delay
-        const NUM_LANES = 4; // Number of invisible vertical lanes
+        const NUM_LANES = 6; // Number of invisible vertical lanes
 
         // --- EXPERIMENT DESIGN ---
         const conditionsList = ['Hue_Only', 'Luminance_Only', 'Hue_And_Luminance', 'Control'];
@@ -417,7 +417,7 @@
             const boardWidth = board.clientWidth;
             // Generate target dimensions FIRST so background can strictly constrain clutter size
             state.targetW = Math.max(boardWidth * (80 / 400), 40); 
-            state.targetH = state.targetW * 2.5; // Tall and narrow "lizard"
+            state.targetH = state.targetW * 2; // Tall and narrow "lizard"
             
             currentTrialMetrics = {
                 spatialFreq: randomFreq, lumContrast: lumVariance, colorClutter: colorVariance,
